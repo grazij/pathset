@@ -15,8 +15,12 @@
 #     is treated as part of the path, not a comment. If you want to annotate
 #     an entry, put the comment on its own line above it.
 #   - blank lines are ignored
-#   - leading '?' marks an entry as optional: silent skip if missing,
-#     and does NOT contribute to exit code 3
+#   - a plain entry is ALWAYS emitted; if it is missing, empty, unreadable
+#     or not a directory, pathset warns on stderr and emits it anyway
+#   - leading '?' makes an entry conditional: it is included only if it is
+#     an existing, readable, non-empty directory, and is dropped silently
+#     otherwise. Neither form contributes to exit code 3 -- only a failed
+#     expansion does.
 #
 # Expansion happens before the directory check:
 #   ~/foo        ->  $HOME/foo                (only at start of entry)
@@ -50,7 +54,7 @@
 # deno
 ?$HOME/.deno/bin
 
-# --- System (required — warn + exit 3 if missing) -------------------------
+# --- System (unconditional — emitted, with a warning, even if missing) ----
 /usr/local/bin
 /usr/local/sbin
 /usr/bin

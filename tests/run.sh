@@ -184,8 +184,8 @@ else
 	bad "CRLF" "got: $got8"
 fi
 
-# --- Test 9: missing directory is skipped with warning ---
-t 9 'missing directory is skipped with warning'
+# --- Test 9: missing directory is emitted with a warning ---
+t 9 'missing directory is emitted with a warning'
 cfg9="$WORK/cfg9"
 missing="$WORK/no-such-dir"
 cat >"$cfg9" <<EOF
@@ -194,14 +194,16 @@ $missing
 $B
 EOF
 got9="$("$BIN" -c "$cfg9" 2>"$WORK/err9")"
-if [[ "$got9" == "$A:$B" ]] && grep -q "skipping '$missing'" "$WORK/err9"; then
-	ok "missing directory is skipped with warning"
+rc9=$?
+if [[ "$got9" == "$A:$missing:$B" && $rc9 -eq 0 ]] \
+	&& grep -q "'$missing' does not exist (emitted anyway)" "$WORK/err9"; then
+	ok "missing directory is emitted with a warning (exit 0)"
 else
-	bad "missing dir skip" "got: $got9 / err: $(cat "$WORK/err9")"
+	bad "missing dir emit" "rc=$rc9 got: $got9 / err: $(cat "$WORK/err9")"
 fi
 
-# --- Test 10: empty directory is skipped with warning ---
-t 10 'empty directory is skipped with warning'
+# --- Test 10: empty directory is emitted with a warning ---
+t 10 'empty directory is emitted with a warning'
 empty="$WORK/empty"
 mkdir -p "$empty"
 cfg10="$WORK/cfg10"
@@ -211,25 +213,27 @@ $empty
 $B
 EOF
 got10="$("$BIN" -c "$cfg10" 2>"$WORK/err10")"
-if [[ "$got10" == "$A:$B" ]] && grep -q "directory is empty" "$WORK/err10"; then
-	ok "empty directory is skipped with warning"
+rc10=$?
+if [[ "$got10" == "$A:$empty:$B" && $rc10 -eq 0 ]] \
+	&& grep -q "'$empty' is an empty directory (emitted anyway)" "$WORK/err10"; then
+	ok "empty directory is emitted with a warning (exit 0)"
 else
-	bad "empty dir skip" "got: $got10 / err: $(cat "$WORK/err10")"
+	bad "empty dir emit" "rc=$rc10 got: $got10 / err: $(cat "$WORK/err10")"
 fi
 
 # --- Test 11: -q suppresses per-entry warnings but keeps a summary ---
 t 11 '-q suppresses per-entry warnings but keeps a summary'
 got11="$("$BIN" -c "$cfg9" -q 2>"$WORK/err11")"
-if [[ "$got11" == "$A:$B" ]] \
-	&& ! grep -q 'skipping' "$WORK/err11" \
-	&& grep -q '1 entry skipped' "$WORK/err11"; then
+if [[ "$got11" == "$A:$missing:$B" ]] \
+	&& ! grep -q 'emitted anyway' "$WORK/err11" \
+	&& grep -q '1 entry emitted with a warning' "$WORK/err11"; then
 	ok "-q suppresses per-entry warnings but still summarizes"
 else
 	bad "-q suppress" "got: $got11 / err: $(cat "$WORK/err11")"
 fi
 
-# --- Test 12: file (not a directory) is skipped with warning ---
-t 12 'file (not a directory) is skipped with warning'
+# --- Test 12: file (not a directory) is emitted with a warning ---
+t 12 'file (not a directory) is emitted with a warning'
 filepath="$WORK/regular-file"
 : >"$filepath"
 cfg12="$WORK/cfg12"
@@ -238,10 +242,11 @@ $A
 $filepath
 EOF
 got12="$("$BIN" -c "$cfg12" 2>"$WORK/err12")"
-if [[ "$got12" == "$A" ]] && grep -q "skipping '$filepath'" "$WORK/err12"; then
-	ok "non-directory is skipped with warning"
+if [[ "$got12" == "$A:$filepath" ]] \
+	&& grep -q "'$filepath' is not a directory (emitted anyway)" "$WORK/err12"; then
+	ok "non-directory is emitted with a warning"
 else
-	bad "non-dir skip" "got: $got12 / err: $(cat "$WORK/err12")"
+	bad "non-dir emit" "got: $got12 / err: $(cat "$WORK/err12")"
 fi
 
 # --- Test 13: -d drops duplicate entries, first wins ---
@@ -270,18 +275,18 @@ else
 	bad "no-dedup default" "got: $got14"
 fi
 
-# --- Test 15: -d combined with skip filtering ---
-t 15 '-d combined with skip filtering'
+# --- Test 15: -d combined with a ?conditional drop ---
+t 15 '-d combined with a ?conditional drop'
 cfg15="$WORK/cfg15"
 cat >"$cfg15" <<EOF
 $A
-$WORK/no-such
+?$WORK/no-such
 $A
 $B
 EOF
 got15="$("$BIN" -c "$cfg15" -d 2>/dev/null)"
 if [[ "$got15" == "$A:$B" ]]; then
-	ok "-d runs after filter; skipped entries don't shadow real ones"
+	ok "-d runs after filter; dropped entries don't shadow real ones"
 else
 	bad "-d + filter" "got: $got15"
 fi
@@ -302,8 +307,8 @@ else
 	bad "-v keeps" "got: $got16 / err: $(cat "$WORK/err16")"
 fi
 
-# --- Test 17: -v also reports skipped entries (additive with warnings) ---
-t 17 '-v also reports skipped entries (additive with warnings)'
+# --- Test 17: -v is additive with the emitted-anyway warnings ---
+t 17 '-v is additive with the emitted-anyway warnings'
 cfg17="$WORK/cfg17"
 cat >"$cfg17" <<EOF
 $A
@@ -311,17 +316,18 @@ $WORK/no-such
 EOF
 "$BIN" -c "$cfg17" -v >/dev/null 2>"$WORK/err17"
 if grep -q "keeping '$A'" "$WORK/err17" && \
-   grep -q "skipping '$WORK/no-such'" "$WORK/err17"; then
-	ok "-v is additive with skip warnings"
+   grep -q "keeping '$WORK/no-such'" "$WORK/err17" && \
+   grep -q "'$WORK/no-such' does not exist (emitted anyway)" "$WORK/err17"; then
+	ok "-v lists a warned entry as kept, alongside its warning"
 else
 	bad "-v additive" "err: $(cat "$WORK/err17")"
 fi
 
-# --- Test 18: -q overrides -v, leaving only the skip summary ---
-t 18 '-q overrides -v, leaving only the skip summary'
+# --- Test 18: -q overrides -v, leaving only the summary ---
+t 18 '-q overrides -v, leaving only the summary'
 "$BIN" -c "$cfg17" -v -q >/dev/null 2>"$WORK/err18"
-if ! grep -qE 'keeping|expanded|skipping' "$WORK/err18" \
-	&& grep -q '1 entry skipped' "$WORK/err18"; then
+if ! grep -qE 'keeping|expanded|skipping|emitted anyway' "$WORK/err18" \
+	&& grep -q '1 entry emitted with a warning' "$WORK/err18"; then
 	ok "-q overrides -v (only the summary survives)"
 else
 	bad "-q overrides -v" "err: $(cat "$WORK/err18")"
@@ -414,7 +420,7 @@ t 25 'tilde mid-string is literal'
 cfg25="$WORK/cfg25"
 echo "$WORK/~mid/foo" >"$cfg25"
 "$BIN" -c "$cfg25" >/dev/null 2>"$WORK/err25"
-if grep -q "skipping '$WORK/~mid/foo'" "$WORK/err25"; then
+if grep -q "'$WORK/~mid/foo' does not exist" "$WORK/err25"; then
 	ok "tilde mid-string treated literally (not expanded)"
 else
 	bad "mid-tilde literal" "err: $(cat "$WORK/err25")"
@@ -451,9 +457,9 @@ mkdir -p "$literal"
 echo "$WORK/with\$/foo" >"$cfg28"
 # $/ does not match a var pattern (next char is /, not [A-Za-z_]) so $ is literal
 "$BIN" -c "$cfg28" >/dev/null 2>"$WORK/err28"
-# That literal path doesn't exist, so it's skipped — but the warning should
-# mention the original (literal $) form, proving no expansion happened.
-if grep -q "skipping '$WORK/with\$/foo'" "$WORK/err28"; then
+# That literal path doesn't exist, so it warns — and the warning should name
+# the original (literal $) form, proving no expansion happened.
+if grep -q "'$WORK/with\$/foo' does not exist" "$WORK/err28"; then
 	ok "lone \$ followed by non-name char is literal"
 else
 	bad "lone \$" "err: $(cat "$WORK/err28")"
@@ -474,19 +480,19 @@ else
 	bad "exit 0 clean" "rc=$rc"
 fi
 
-# --- Test 30: any skipped entry exits 3 (filter) ---
-t 30 'any skipped entry exits 3 (filter)'
+# --- Test 30: a failed directory check emits and leaves the exit code at 0 ---
+t 30 'a failed directory check emits and leaves the exit code at 0'
 cfg32="$WORK/cfg32"
 cat >"$cfg32" <<EOF
 $A
 $WORK/no-such-dir
 EOF
-"$BIN" -c "$cfg32" >/dev/null 2>/dev/null
+got32="$("$BIN" -c "$cfg32" 2>/dev/null)"
 rc=$?
-if [[ $rc -eq 3 ]]; then
-	ok "skipped entry (filter) exits 3"
+if [[ "$got32" == "$A:$WORK/no-such-dir" && $rc -eq 0 ]]; then
+	ok "the directory check never produces exit 3"
 else
-	bad "exit 3 filter" "rc=$rc"
+	bad "filter exit code" "rc=$rc got: $got32"
 fi
 
 # --- Test 31: skipped expansion (unset var) exits 3 ---
@@ -507,7 +513,7 @@ fi
 
 # --- Test 32: -q does not change exit code ---
 t 32 '-q does not change exit code'
-"$BIN" -c "$cfg32" -q >/dev/null 2>/dev/null
+"$BIN" -c "$cfg33" -q >/dev/null 2>/dev/null
 rc=$?
 if [[ $rc -eq 3 ]]; then
 	ok "-q does not mask exit 3"
@@ -576,8 +582,8 @@ else
 	bad "-V" "rc=$rc / got: $got39"
 fi
 
-# --- Test 38: ?optional missing dir -> silent skip, exit 0 ---
-t 38 '?optional missing dir -> silent skip, exit 0'
+# --- Test 38: ?conditional missing dir -> silent drop, exit 0 ---
+t 38 '?conditional missing dir -> silent drop, exit 0'
 cfg38="$WORK/cfg38"
 cat >"$cfg38" <<EOF
 $A
@@ -586,22 +592,22 @@ EOF
 got38="$("$BIN" -c "$cfg38" 2>"$WORK/err38")"
 rc=$?
 if [[ "$got38" == "$A" ]] && [[ ! -s "$WORK/err38" ]] && [[ $rc -eq 0 ]]; then
-	ok "?optional missing dir is silently skipped (exit 0)"
+	ok "?conditional missing dir is silently dropped (exit 0)"
 else
-	bad "?optional silent" "got: $got38 / rc=$rc / err: $(cat "$WORK/err38")"
+	bad "?conditional silent" "got: $got38 / rc=$rc / err: $(cat "$WORK/err38")"
 fi
 
-# --- Test 39: ?optional + -v reports the skip ---
-t 39 '?optional + -v reports the skip'
+# --- Test 39: ?conditional + -v reports the drop ---
+t 39 '?conditional + -v reports the drop'
 "$BIN" -c "$cfg38" -v >/dev/null 2>"$WORK/err39"
-if grep -q "skipping optional '$WORK/no-such-optional'" "$WORK/err39"; then
-	ok "?optional reported under -v"
+if grep -q "skipping conditional '$WORK/no-such-optional'" "$WORK/err39"; then
+	ok "?conditional drop reported under -v"
 else
-	bad "?optional verbose" "err: $(cat "$WORK/err39")"
+	bad "?conditional verbose" "err: $(cat "$WORK/err39")"
 fi
 
-# --- Test 40: ?optional with unset var also silent ---
-t 40 '?optional with unset var also silent'
+# --- Test 40: ?conditional with unset var also silent ---
+t 40 '?conditional with unset var also silent'
 cfg40="$WORK/cfg40"
 cat >"$cfg40" <<EOF
 $A
@@ -610,13 +616,13 @@ EOF
 got40="$(unset PATHSET_DEFINITELY_UNSET_OPT; "$BIN" -c "$cfg40" 2>"$WORK/err40")"
 rc=$?
 if [[ "$got40" == "$A" ]] && [[ ! -s "$WORK/err40" ]] && [[ $rc -eq 0 ]]; then
-	ok "?optional with unset var is silent (exit 0)"
+	ok "?conditional with unset var is silent (exit 0)"
 else
-	bad "?optional unset var" "got: $got40 / rc=$rc / err: $(cat "$WORK/err40")"
+	bad "?conditional unset var" "got: $got40 / rc=$rc / err: $(cat "$WORK/err40")"
 fi
 
-# --- Test 41: ?optional that DOES exist behaves normally ---
-t 41 '?optional that DOES exist behaves normally'
+# --- Test 41: ?conditional that DOES pass the check behaves normally ---
+t 41 '?conditional that DOES pass the check behaves normally'
 cfg41="$WORK/cfg41"
 cat >"$cfg41" <<EOF
 ?$A
@@ -625,26 +631,26 @@ EOF
 got41="$("$BIN" -c "$cfg41" 2>/dev/null)"
 rc=$?
 if [[ "$got41" == "$A:$B" ]] && [[ $rc -eq 0 ]]; then
-	ok "?optional that resolves is included normally"
+	ok "?conditional that passes the check is included normally"
 else
-	bad "?optional resolves" "got: $got41 / rc=$rc"
+	bad "?conditional resolves" "got: $got41 / rc=$rc"
 fi
 
-# --- Test 42: ?optional with whitespace between ? and path ---
-t 42 '?optional with whitespace between ? and path'
+# --- Test 42: ?conditional with whitespace between ? and path ---
+t 42 '?conditional with whitespace between ? and path'
 cfg42="$WORK/cfg42"
 cat >"$cfg42" <<EOF
 ?  $A
 EOF
 got42="$("$BIN" -c "$cfg42" 2>/dev/null)"
 if [[ "$got42" == "$A" ]]; then
-	ok "?optional accepts whitespace between ? and path"
+	ok "?conditional accepts whitespace between ? and path"
 else
-	bad "?optional whitespace" "got: $got42"
+	bad "?conditional whitespace" "got: $got42"
 fi
 
-# --- Test 43: permission-denied directory is skipped with warning ---
-t 43 'permission-denied directory is skipped with warning'
+# --- Test 43: permission-denied directory is emitted with a warning ---
+t 43 'permission-denied directory is emitted with a warning'
 noperm="$WORK/noperm"
 mkdir -p "$noperm"
 chmod 000 "$noperm"
@@ -657,12 +663,13 @@ $noperm
 EOF
 got43="$("$BIN" -c "$cfg43" 2>"$WORK/err43")"
 rc=$?
-# Behavior: stat() may succeed (we can stat the dir we own) but opendir() will
-# fail with EACCES. Either path leads to a skip with errno-derived warning.
-if [[ "$got43" == "$A" ]] && grep -q "skipping '$noperm'" "$WORK/err43" && [[ $rc -eq 3 ]]; then
-	ok "permission-denied directory is skipped (exit 3)"
+# Behavior: stat() succeeds (we can stat the dir we own) but opendir() fails
+# with EACCES. Unreadable is not unusable, so the entry is emitted anyway.
+if [[ "$got43" == "$A:$noperm" && $rc -eq 0 ]] \
+	&& grep -q "'$noperm' is not readable (emitted anyway)" "$WORK/err43"; then
+	ok "permission-denied directory is emitted with a warning (exit 0)"
 else
-	bad "chmod 000 skip" "got: $got43 / rc=$rc / err: $(cat "$WORK/err43")"
+	bad "chmod 000 emit" "got: $got43 / rc=$rc / err: $(cat "$WORK/err43")"
 fi
 # Restore perms so subsequent tests / rm -rf work.
 chmod 755 "$noperm"
@@ -808,16 +815,16 @@ else
 	bad "empty \$VAR" "rc=$rc_ev got: $got_ev stderr: $(cat "$WORK/err_ev")"
 fi
 
-# --- Test 56: ?optional with set-but-empty $VAR is silent (exit 0) ---
-t 56 '?optional with set-but-empty $VAR is silent (exit 0)'
+# --- Test 56: ?conditional with set-but-empty $VAR is silent (exit 0) ---
+t 56 '?conditional with set-but-empty $VAR is silent (exit 0)'
 cfg_oev="$WORK/cfg_oev"
 printf '%s\n?$MTVAR/usr/bin\n' "$A" >"$cfg_oev"
 got_oev="$(MTVAR="" "$BIN" -c "$cfg_oev" 2>"$WORK/err_oev")"
 rc_oev=$?
 if [[ "$got_oev" == "$A" && $rc_oev -eq 0 && ! -s "$WORK/err_oev" ]]; then
-	ok "?optional with empty \$VAR is silent (exit 0)"
+	ok "?conditional with empty \$VAR is silent (exit 0)"
 else
-	bad "?optional empty \$VAR" "rc=$rc_oev stderr: $(cat "$WORK/err_oev")"
+	bad "?conditional empty \$VAR" "rc=$rc_oev stderr: $(cat "$WORK/err_oev")"
 fi
 
 # --- Test 57: --help is accepted and exits 0 ---
@@ -901,7 +908,7 @@ fi
 # --- Test 65: without -q the summary is not added on top of the warnings ---
 t 65 'without -q the summary is not added on top of the warnings'
 "$BIN" -c "$cfg9" >/dev/null 2>"$WORK/err_nq"
-if grep -q 'skipping' "$WORK/err_nq" && ! grep -q 'entry skipped\|entries skipped' "$WORK/err_nq"; then
+if grep -q 'emitted anyway' "$WORK/err_nq" && ! grep -q 'omit -q to see which' "$WORK/err_nq"; then
 	ok "without -q the per-entry warning stands alone (no duplicate summary)"
 else
 	bad "no -q summary" "err: $(cat "$WORK/err_nq")"
@@ -910,7 +917,8 @@ fi
 # --- Test 66: summary is pluralised on more than one skip ---
 t 66 'summary is pluralised on more than one skip'
 cfg_pl="$WORK/cfg_pl"
-printf '%s\n%s/nope1\n%s/nope2\n' "$A" "$WORK" "$WORK" >"$cfg_pl"
+unset PATHSET_PL_1 PATHSET_PL_2
+printf '%s\n$PATHSET_PL_1/x\n$PATHSET_PL_2/y\n' "$A" >"$cfg_pl"
 "$BIN" -c "$cfg_pl" -q >/dev/null 2>"$WORK/err_pl"
 if grep -q '2 entries skipped' "$WORK/err_pl"; then
 	ok "skip summary pluralises correctly"
@@ -918,16 +926,17 @@ else
 	bad "summary plural" "err: $(cat "$WORK/err_pl")"
 fi
 
-# --- Test 67: every entry dropped -> exit 1, nothing on stdout ---
-t 67 'every entry dropped -> exit 1, nothing on stdout'
+# --- Test 67: every entry skipped -> exit 1, nothing on stdout ---
+t 67 'every entry skipped -> exit 1, nothing on stdout'
 cfg_ae="$WORK/cfg_ae"
-printf '%s/nope1\n%s/nope2\n' "$WORK" "$WORK" >"$cfg_ae"
+unset PATHSET_AE_1 PATHSET_AE_2
+printf '$PATHSET_AE_1/nope1\n$PATHSET_AE_2/nope2\n' >"$cfg_ae"
 got_ae="$("$BIN" -c "$cfg_ae" -q 2>"$WORK/err_ae")"
 rc_ae=$?
 if [[ -z "$got_ae" && $rc_ae -eq 1 ]] && grep -q -- '--allow-empty' "$WORK/err_ae"; then
-	ok "all entries dropped is fatal (exit 1), not a silent empty PATH"
+	ok "all entries skipped is fatal (exit 1), not a silent empty PATH"
 else
-	bad "all dropped" "rc=$rc_ae got: $got_ae err: $(cat "$WORK/err_ae")"
+	bad "all skipped" "rc=$rc_ae got: $got_ae err: $(cat "$WORK/err_ae")"
 fi
 
 # --- Test 68: --allow-empty permits it, exit 3 still reports the skips ---
@@ -962,7 +971,10 @@ fi
 
 # --- Test 71: --check reports a rotted config with exit 3, still no stdout ---
 t 71 '--check reports a rotted config with exit 3, still no stdout'
-got_ck2="$("$BIN" -c "$cfg9" --check 2>"$WORK/err_ck2")"
+cfg_rot="$WORK/cfg_rot"
+unset PATHSET_ROT_UNSET
+printf '%s\n$PATHSET_ROT_UNSET/bin\n' "$A" >"$cfg_rot"
+got_ck2="$("$BIN" -c "$cfg_rot" --check 2>"$WORK/err_ck2")"
 rc_ck2=$?
 if [[ -z "$got_ck2" && $rc_ck2 -eq 3 ]] && grep -q 'skipping' "$WORK/err_ck2"; then
 	ok "--check exits 3 on a rotted config and prints nothing on stdout"
@@ -993,16 +1005,16 @@ else
 	bad "colon entry" "rc=$rc_co got: $got_co err: $(cat "$WORK/err_co")"
 fi
 
-# --- Test 74: ?optional colon entry is silently skipped (exit 0) ---
-t 74 '?optional colon entry is silently skipped (exit 0)'
+# --- Test 74: ?conditional colon entry is silently skipped (exit 0) ---
+t 74 '?conditional colon entry is silently skipped (exit 0)'
 cfg_co2="$WORK/cfg_co2"
 printf '%s\n?%s/co:lon\n' "$A" "$WORK" >"$cfg_co2"
 got_co2="$("$BIN" -c "$cfg_co2" 2>"$WORK/err_co2")"
 rc_co2=$?
 if [[ "$got_co2" == "$A" && $rc_co2 -eq 0 && ! -s "$WORK/err_co2" ]]; then
-	ok "?optional entry containing ':' is silently skipped"
+	ok "?conditional entry containing ':' is silently skipped"
 else
-	bad "optional colon entry" "rc=$rc_co2 got: $got_co2 err: $(cat "$WORK/err_co2")"
+	bad "conditional colon entry" "rc=$rc_co2 got: $got_co2 err: $(cat "$WORK/err_co2")"
 fi
 
 # --- Test 75: a colon arriving via expansion is caught too ---
@@ -1015,6 +1027,75 @@ if [[ "$got_co3" == "$A" && $rc_co3 -eq 3 ]]; then
 	ok "a ':' introduced by \$VAR expansion is caught after expanding"
 else
 	bad "expanded colon" "rc=$rc_co3 got: $got_co3"
+fi
+
+# --- Test 76: ?conditional on an empty directory is dropped silently ---
+t 76 '?conditional on an empty directory is dropped silently'
+cfg76="$WORK/cfg76"
+printf '%s\n?%s\n' "$A" "$empty" >"$cfg76"
+got76="$("$BIN" -c "$cfg76" 2>"$WORK/err76")"
+rc76=$?
+if [[ "$got76" == "$A" && $rc76 -eq 0 && ! -s "$WORK/err76" ]]; then
+	ok "?conditional empty directory is dropped silently (exit 0)"
+else
+	bad "?conditional empty dir" "rc=$rc76 got: $got76 err: $(cat "$WORK/err76")"
+fi
+
+# --- Test 77: execute-but-not-read directory is emitted with a warning ---
+t 77 'execute-but-not-read directory is emitted with a warning'
+xonly="$WORK/xonly"
+mkdir -p "$xonly"
+: >"$xonly/file"
+chmod 0111 "$xonly"
+# Widen the cleanup trap: rm -rf cannot descend into a 0111 directory either.
+trap 'chmod 755 "$noperm" "$xonly" 2>/dev/null; rm -rf "$WORK"' EXIT
+cfg77="$WORK/cfg77"
+printf '%s\n%s\n' "$A" "$xonly" >"$cfg77"
+got77="$("$BIN" -c "$cfg77" 2>"$WORK/err77")"
+rc77=$?
+if [[ "$got77" == "$A:$xonly" && $rc77 -eq 0 ]] \
+	&& grep -q "'$xonly' is not readable (emitted anyway)" "$WORK/err77"; then
+	ok "0111 directory is emitted: PATH lookup needs x, not r"
+else
+	bad "exec-only dir" "rc=$rc77 got: $got77 err: $(cat "$WORK/err77")"
+fi
+
+# --- Test 78: ?conditional on an execute-only directory is dropped ---
+t 78 '?conditional on an execute-only directory is dropped'
+cfg78="$WORK/cfg78"
+printf '%s\n?%s\n' "$A" "$xonly" >"$cfg78"
+got78="$("$BIN" -c "$cfg78" 2>"$WORK/err78")"
+rc78=$?
+if [[ "$got78" == "$A" && $rc78 -eq 0 && ! -s "$WORK/err78" ]]; then
+	ok "?conditional execute-only directory is dropped silently"
+else
+	bad "?conditional exec-only" "rc=$rc78 got: $got78 err: $(cat "$WORK/err78")"
+fi
+chmod 755 "$xonly"
+
+# --- Test 79: summary pluralises entries emitted with warnings ---
+t 79 'summary pluralises entries emitted with warnings'
+cfg79="$WORK/cfg79"
+printf '%s\n%s/nope1\n%s/nope2\n' "$A" "$WORK" "$WORK" >"$cfg79"
+"$BIN" -c "$cfg79" -q >/dev/null 2>"$WORK/err79"
+if grep -q '2 entries emitted with warnings' "$WORK/err79"; then
+	ok "warning summary pluralises correctly"
+else
+	bad "warning summary plural" "err: $(cat "$WORK/err79")"
+fi
+
+# --- Test 80: the -q summary reports warnings and skips together ---
+t 80 'the -q summary reports warnings and skips together'
+cfg80="$WORK/cfg80"
+unset PATHSET_SUM_UNSET
+printf '%s\n%s/nope\n$PATHSET_SUM_UNSET/bin\n' "$A" "$WORK" >"$cfg80"
+"$BIN" -c "$cfg80" -q >/dev/null 2>"$WORK/err80"
+rc80=$?
+if [[ $rc80 -eq 3 ]] \
+	&& grep -q '1 entry emitted with a warning, 1 entry skipped' "$WORK/err80"; then
+	ok "-q summary carries both counts; only the skip reaches the exit code"
+else
+	bad "combined summary" "rc=$rc80 err: $(cat "$WORK/err80")"
 fi
 
 # --- Summary ---

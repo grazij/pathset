@@ -14,7 +14,8 @@ Non-shell contexts are worse. The Shortcuts app's "Run Shell Script" action
 loads only `~/.zshenv`, so it inherits whatever `path_helper` produced.
 
 `pathset` prints the order you declared. Set it once in `~/.zshenv` and shells
-and Shortcuts agree. Directories that don't exist, or are empty, are dropped.
+and Shortcuts agree. A directory that doesn't exist, or is empty, is still
+emitted — with a warning — unless you mark it `?`.
 
 The output is data, not a shell command — compose it with `$(...)` into any
 variable you like.
@@ -50,7 +51,7 @@ pathset [-V|--version] [-h|--help]
 | `-c CONFIG` | Read this file instead of the default lookup. Missing file is fatal; `-k` is ignored. |
 | `-k KIND` | One of `path` (default), `man`, `info`, `fpath`. Selects which config file is read. |
 | `-d` | Drop duplicates; first occurrence wins. A trailing slash does not make an entry distinct, so `/opt/bin` and `/opt/bin/` collapse. |
-| `-q` | Suppress the per-entry skip warnings. A one-line summary is still printed — see [Catching a rotted config](#catching-a-rotted-config). |
+| `-q` | Suppress the per-entry warnings. A one-line summary is still printed — see [Catching a rotted config](#catching-a-rotted-config). |
 | `-v` | Print expansions, kept entries, and dropped duplicates on stderr. `-q` wins. |
 | `--check` | Validate only: print nothing on stdout, exit with the codes below. For rc-file guards and scripts that want the status, not the output. |
 | `--allow-empty` | Print an empty result instead of failing on one. |
@@ -83,7 +84,7 @@ mid-path is part of the path); blank lines ignored; CRLF tolerated.
 ~/bin
 ~/.local/bin
 
-# optional: silently skipped when rbenv isn't installed
+# conditional: left out entirely when rbenv isn't installed
 ?$RBENV_ROOT/shims
 
 # system
@@ -91,11 +92,20 @@ mid-path is part of the path); blank lines ignored; CRLF tolerated.
 /bin
 ```
 
-Prefix an entry with `?` to make it **optional**: if it fails to expand or
-isn't a usable directory, it is skipped without a warning and without
-affecting the exit code. Use it for entries that exist on only some of the
-machines sharing the config. Without `?`, a missing entry warns on every shell
-startup and exits `3`.
+A plain entry is **always emitted**. If it is missing, empty, unreadable, or
+not a directory, pathset warns on stderr and emits it anyway: the order you
+declared is the order you get, and a stale entry costs one failed lookup
+rather than silently changing the list.
+
+Prefix an entry with `?` to make it **conditional**: it is checked first, and
+included only if it is an existing, readable, non-empty directory. A `?` entry
+that fails the check is dropped silently. Use it for entries that exist on
+only some of the machines sharing the config, and for anything you would
+rather leave out than be warned about on every shell startup.
+
+Neither form affects the exit code from that check. Only a failed
+*expansion* — an unset `$VAR`, an unknown `~user` — is a skip, and skips are
+what produce exit `3`.
 
 Each entry is expanded before the directory check:
 
@@ -126,12 +136,13 @@ Starter configs are in [`examples/`](examples/): copy `path.example` to
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Every entry was emitted. |
+| `0` | Nothing was skipped. Entries emitted with a warning do not change this. |
 | `1` | Fatal — missing config, I/O error, empty result, out of memory. |
 | `2` | Bad command-line argument. |
-| `3` | One or more entries were skipped. Output is still printed; the code lets a script catch a config that has rotted. |
+| `3` | One or more entries were skipped — a failed expansion, or a `:` that cannot be represented. Output is still printed; the code lets a script catch a config that has rotted. |
 
-`?optional` skips and `-d` duplicate drops do not produce exit `3`.
+A failed directory check is a warning, not a skip. `?conditional` drops and
+`-d` duplicate drops do not produce exit `3` either.
 
 An empty result is exit `1`, not an empty line: `export PATH="$(pathset)"` with
 nothing to print leaves a shell that cannot find any command. Pass
@@ -146,7 +157,7 @@ still prints a summary:
 
 ```console
 $ pathset -c bad.conf -q >/dev/null
-pathset: 2 entries skipped (omit -q to see which)
+pathset: 2 entries emitted with warnings, 1 entry skipped (omit -q to see which)
 ```
 
 Anywhere you want the status rather than the output, use `--check`:
@@ -170,19 +181,29 @@ $ pathset -c demo.conf
 $ pathset -c demo.conf -v > /dev/null
 pathset: expanded '~/bin' -> '/Users/Shared/pathset-demo/bin'
 pathset: expanded '~/.local/bin' -> '/Users/Shared/pathset-demo/.local/bin'
-pathset: skipping optional '$RBENV_ROOT/shims': $RBENV_ROOT is not set
+pathset: skipping conditional '$RBENV_ROOT/shims': $RBENV_ROOT is not set
 pathset: keeping '/Users/Shared/pathset-demo/bin'
 pathset: keeping '/Users/Shared/pathset-demo/.local/bin'
 pathset: keeping '/usr/bin'
 pathset: keeping '/bin'
 ```
 
-A required entry that is missing warns and sets exit `3`, but the rest is
-still emitted:
+An entry that isn't a usable directory warns, is emitted anyway, and leaves
+the exit code alone:
+
+```console
+$ pathset -c demo.conf ; echo "exit=$?"
+pathset: '/opt/nope/bin' does not exist (emitted anyway)
+/usr/bin:/opt/nope/bin
+exit=0
+```
+
+An entry that fails to *expand* is the other case: there is no path to emit,
+so it is skipped — and that is what sets exit `3`:
 
 ```console
 $ pathset -c bad.conf ; echo "exit=$?"
-pathset: skipping '/opt/nope/bin': No such file or directory
+pathset: skipping '$RBENV_ROOT/shims': $RBENV_ROOT is not set
 /usr/bin
 exit=3
 ```
@@ -209,11 +230,10 @@ working — they prepend or append to the managed value.
 - Comments are full-line only, because a path may legitimately contain `#`.
 - A directory whose path contains `:` is skipped: the output format has no
   escape for the separator, so it cannot be represented.
-- Directories that exist but are empty are dropped, by design.
-- A directory unreadable due to permissions is indistinguishable from a
-  missing one; both are dropped with a warning. This means a directory with
-  execute-but-not-read permission is dropped even though `PATH` lookup would
-  work in it — accepted, because detecting emptiness requires reading.
+- The `?` check needs read permission, because it uses `opendir(3)` to tell
+  an empty directory from a populated one. `PATH` lookup needs only execute,
+  so a `0111` directory is usable but fails the check and a `?` entry naming
+  one is dropped. Write it without `?` to have it emitted.
 
 ## Related
 

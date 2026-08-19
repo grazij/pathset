@@ -29,7 +29,7 @@ drop duplicate entries (first occurrence wins; a
 trailing slash does not make an entry distinct)
 .TP
 \fB\-q\fR
-suppress per\-entry skip warnings. A one\-line summary
+suppress the per\-entry warnings. A one\-line summary
 is still printed: $(...) discards the exit status, so
 it would otherwise be the only signal, and silent.
 .TP
@@ -55,10 +55,14 @@ show this help and exit
 (full\-line only; '#' mid\-path is data, not a comment)
 .IP
 \- blank lines are ignored; CRLF line endings are tolerated
-\- entries that don't exist or are empty directories are skipped
-\- prefix an entry with '?' to mark it optional (silent skip,
+\- an entry that is missing, empty, unreadable or not a directory
 .IP
-no exit\-code effect): e.g. `?/opt/homebrew/bin`
+is still emitted, with a warning; it never affects the exit code
+.IP
+\- prefix an entry with '?' to make it conditional: it must be an
+.IP
+existing, readable, non\-empty directory or it is dropped
+silently: e.g. `?/opt/homebrew/bin`
 .SS "Expansion (applied per entry, before the directory check):"
 .TP
 \fI\,~/foo\/\fP
@@ -90,7 +94,8 @@ set \fB\-gx\fR PATH (pathset \fB\-q\fR \fB\-d\fR | string split :)
 .SS "Exit codes:"
 .TP
 0
-every config entry was emitted
+nothing was skipped (an entry emitted with a warning is not
+a skip)
 .TP
 1
 fatal error (missing config, I/O error, empty result, out of
@@ -100,5 +105,6 @@ memory)
 bad command\-line argument
 .TP
 3
-one or more entries were skipped (expand or filter failure;
-\&'?optional' skips and dedup drops do NOT contribute)
+one or more entries were skipped: an expansion failure, or a
+\&':' that cannot be represented. '?conditional' drops and
+dedup drops do NOT contribute

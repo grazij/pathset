@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING** — an entry that is not a usable directory is now emitted with a
+  warning instead of being dropped, and no longer affects the exit code. `?`
+  changes meaning to match: it was "optional: skip quietly if broken", and is
+  now "conditional: check before including". It keeps the full existing check
+  (must be an existing, readable, non-empty directory) and drops the entry
+  silently when it fails.
+
+  Dropping an entry silently rewrites the order the config declared, and it
+  did so in the one case where the check is wrong about usability:
+  `dir_has_entries` uses `opendir`, which needs read permission, while `PATH`
+  lookup needs only execute — so a `0111` directory was refused despite
+  working perfectly. Emitting a dead entry costs one failed lookup; dropping a
+  live one changes the answer.
+
+  To keep the old behaviour for an entry, prefix it with `?`. Configs that
+  already use `?` are unaffected. A config relying on a plain entry being
+  dropped will now see it in the output, and will stop seeing exit `3` from
+  the directory check.
+
+- `-q` now summarises warnings as well as skips, e.g. `2 entries emitted with
+  warnings, 1 entry skipped`. A warned entry leaves the exit status at `0`, so
+  under `-q` — where the per-entry warnings are gone and `$(...)` has already
+  discarded the status — the summary is its only trace.
+
 ## 0.4.0
 
 ### Added

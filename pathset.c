@@ -58,7 +58,7 @@ static void usage(FILE *out) {
 		"  -k KIND        select kind: path (default), man, info, fpath\n"
 		"  -d             drop duplicate entries (first occurrence wins; a\n"
 		"                 trailing slash does not make an entry distinct)\n"
-		"  -q             suppress per-entry skip warnings. A one-line summary\n"
+		"  -q             suppress the per-entry warnings. A one-line summary\n"
 		"                 is still printed: $(...) discards the exit status, so\n"
 		"                 it would otherwise be the only signal, and silent.\n"
 		"  -v             print kept entries and expansions on stderr (-q wins)\n"
@@ -72,9 +72,11 @@ static void usage(FILE *out) {
 		"  - lines whose first non-whitespace character is '#' are comments\n"
 		"    (full-line only; '#' mid-path is data, not a comment)\n"
 		"  - blank lines are ignored; CRLF line endings are tolerated\n"
-		"  - entries that don't exist or are empty directories are skipped\n"
-		"  - prefix an entry with '?' to mark it optional (silent skip,\n"
-		"    no exit-code effect): e.g. `?/opt/homebrew/bin`\n"
+		"  - an entry that is missing, empty, unreadable or not a directory\n"
+		"    is still emitted, with a warning; it never affects the exit code\n"
+		"  - prefix an entry with '?' to make it conditional: it must be an\n"
+		"    existing, readable, non-empty directory or it is dropped\n"
+		"    silently: e.g. `?/opt/homebrew/bin`\n"
 		"\n"
 		"Expansion (applied per entry, before the directory check):\n"
 		"  ~/foo        $HOME/foo            (only at start of entry)\n"
@@ -94,12 +96,14 @@ static void usage(FILE *out) {
 		"  fish:        set -gx PATH (%s -q -d | string split :)\n"
 		"\n"
 		"Exit codes:\n"
-		"  0  every config entry was emitted\n"
+		"  0  nothing was skipped (an entry emitted with a warning is not\n"
+		"     a skip)\n"
 		"  1  fatal error (missing config, I/O error, empty result, out of\n"
 		"     memory)\n"
 		"  2  bad command-line argument\n"
-		"  3  one or more entries were skipped (expand or filter failure;\n"
-		"     '?optional' skips and dedup drops do NOT contribute)\n",
+		"  3  one or more entries were skipped: an expansion failure, or a\n"
+		"     ':' that cannot be represented. '?conditional' drops and\n"
+		"     dedup drops do NOT contribute\n",
 		PROG, PROG, PROG, PROG, PROG, PROG, PROG, PROG);
 }
 
@@ -162,11 +166,13 @@ static void trim(char **start, size_t *len) {
 	*len = n;
 }
 
-/* `optional` marks a `?`-prefixed entry: on failure it is skipped silently
- * and does not contribute to exit code 3. */
+/* `conditional` marks a `?`-prefixed entry: it is checked before being
+ * included and dropped silently when the check fails. A plain entry is
+ * emitted whatever the check says. Neither form contributes to exit 3 from
+ * the directory check; only an expansion failure does. */
 typedef struct {
 	char *path;
-	int optional;
+	int conditional;
 } Entry;
 
 typedef struct {
@@ -175,7 +181,7 @@ typedef struct {
 	size_t cap;
 } Vec;
 
-static void vec_push(Vec *v, char *s, int optional) {
+static void vec_push(Vec *v, char *s, int conditional) {
 	if (v->n == v->cap) {
 		size_t nc = v->cap ? v->cap * 2 : 16;
 		Entry *np = realloc(v->items, nc * sizeof(Entry));
@@ -184,7 +190,7 @@ static void vec_push(Vec *v, char *s, int optional) {
 		v->cap = nc;
 	}
 	v->items[v->n].path = s;
-	v->items[v->n].optional = optional;
+	v->items[v->n].conditional = conditional;
 	v->n++;
 }
 
@@ -232,11 +238,11 @@ static void read_paths(const char *path, Vec *out) {
 		trim(&s, &n);
 		if (n == 0 || s[0] == '#') continue;
 
-		/* Leading `?` marks the entry as optional. Strip it; whitespace
+		/* Leading `?` marks the entry as conditional. Strip it; whitespace
 		 * between `?` and the path is allowed. */
-		int optional = 0;
+		int conditional = 0;
 		if (s[0] == '?') {
-			optional = 1;
+			conditional = 1;
 			s++; n--;
 			while (n > 0 && isspace((unsigned char)s[0])) { s++; n--; }
 			if (n == 0) continue;  /* "?" with no path is ignored */
@@ -246,7 +252,7 @@ static void read_paths(const char *path, Vec *out) {
 		if (!entry) die(1, "out of memory");
 		memcpy(entry, s, n);
 		entry[n] = '\0';
-		vec_push(out, entry, optional);
+		vec_push(out, entry, conditional);
 	}
 	free(line);
 	if (ferror(f)) die(1, "read error on '%s': %s", path, strerror(errno));
@@ -404,9 +410,9 @@ static void expand_paths(Vec *v, int quiet, int verbose, int *skipped) {
 			err = "contains ':', which cannot be represented in a ':'-joined list";
 		}
 		if (!exp) {
-			if (e.optional) {
+			if (e.conditional) {
 				if (verbose) {
-					fprintf(stderr, "%s: skipping optional '%s': %s\n", PROG, e.path, err);
+					fprintf(stderr, "%s: skipping conditional '%s': %s\n", PROG, e.path, err);
 				}
 			} else {
 				if (!quiet) {
@@ -422,7 +428,7 @@ static void expand_paths(Vec *v, int quiet, int verbose, int *skipped) {
 		}
 		free(e.path);
 		v->items[kept].path = exp;
-		v->items[kept].optional = e.optional;
+		v->items[kept].conditional = e.conditional;
 		kept++;
 	}
 	v->n = kept;
@@ -468,28 +474,58 @@ static void dedup_paths(Vec *v, int verbose) {
 	v->n = kept;
 }
 
-static void filter_paths(Vec *v, int quiet, int verbose, int *skipped) {
+/*
+ * A phrase completing "'<path>' ...", so both messages below read as English.
+ * `rc` and `err` come straight from dir_has_entries and the errno it left.
+ * The strerror fallback uses a static buffer the next call overwrites, so the
+ * caller must consume it before checking another entry.
+ */
+static const char *unusable_reason(int rc, int err) {
+	static char buf[320];
+	if (rc == 0) return "is an empty directory";
+	switch (err) {
+	case ENOENT: return "does not exist";
+	case ENOTDIR: return "is not a directory";
+	case EACCES: return "is not readable";
+	default: break;
+	}
+	snprintf(buf, sizeof buf, "is unusable: %s", strerror(err));
+	return buf;
+}
+
+/*
+ * The directory check, which decides nothing on its own for a plain entry: an
+ * unusable directory in PATH costs a wasted lookup, while dropping it silently
+ * reorders the list the config declared and hides the real fault. So a plain
+ * entry is always emitted and only warns, never touching the exit code.
+ *
+ * `?` is the checked form: it must be an existing, readable, non-empty
+ * directory or it is dropped, silently. Neither outcome is a skip -- only
+ * expansion failure sets *skipped, back in expand_paths.
+ */
+static void filter_paths(Vec *v, int quiet, int verbose, int *warned) {
 	size_t kept = 0;
 	for (size_t i = 0; i < v->n; i++) {
 		Entry e = v->items[i];
 		int rc = dir_has_entries(e.path);
-		if (rc == 1) {
-			if (verbose) fprintf(stderr, "%s: keeping '%s'\n", PROG, e.path);
-			v->items[kept++] = e;
+		int err = errno;
+		if (rc != 1 && e.conditional) {
+			if (verbose) {
+				fprintf(stderr, "%s: skipping conditional '%s': %s\n",
+					PROG, e.path, unusable_reason(rc, err));
+			}
+			free(e.path);
 			continue;
 		}
-		const char *reason = (rc == 0) ? "directory is empty" : strerror(errno);
-		if (e.optional) {
-			if (verbose) {
-				fprintf(stderr, "%s: skipping optional '%s': %s\n", PROG, e.path, reason);
-			}
-		} else {
+		if (rc != 1) {
 			if (!quiet) {
-				fprintf(stderr, "%s: skipping '%s': %s\n", PROG, e.path, reason);
+				fprintf(stderr, "%s: '%s' %s (emitted anyway)\n",
+					PROG, e.path, unusable_reason(rc, err));
 			}
-			(*skipped)++;
+			(*warned)++;
 		}
-		free(e.path);
+		if (verbose) fprintf(stderr, "%s: keeping '%s'\n", PROG, e.path);
+		v->items[kept++] = e;
 	}
 	v->n = kept;
 }
@@ -596,18 +632,31 @@ int main(int argc, char **argv) {
 	char *cfg = resolve_config_path(cfg_override, kind);
 	Vec v = {0};
 	int skipped = 0;
+	int warned = 0;
 	read_paths(cfg, &v);
 	expand_paths(&v, quiet, verbose, &skipped);
-	filter_paths(&v, quiet, verbose, &skipped);
+	filter_paths(&v, quiet, verbose, &warned);
 	if (dedup) dedup_paths(&v, verbose);
 
 	/* -q drops the per-entry warnings, and the documented invocation
 	 * `export PATH="$(pathset -q -d)"` discards the exit status too: the shell
 	 * reports export's status, not ours. Between them a rotted config could
-	 * degrade PATH with no signal at all, so one summary line survives -q. */
-	if (quiet && skipped > 0) {
-		fprintf(stderr, "%s: %d %s skipped (omit -q to see which)\n",
-			PROG, skipped, skipped == 1 ? "entry" : "entries");
+	 * degrade PATH with no signal at all, so one summary line survives -q.
+	 * It counts warnings as well as skips: a warned entry leaves the exit
+	 * status at 0, which makes the summary its *only* trace. */
+	if (quiet && (warned > 0 || skipped > 0)) {
+		fprintf(stderr, "%s: ", PROG);
+		if (warned > 0) {
+			fprintf(stderr, "%d %s emitted with %s", warned,
+				warned == 1 ? "entry" : "entries",
+				warned == 1 ? "a warning" : "warnings");
+			if (skipped > 0) fputs(", ", stderr);
+		}
+		if (skipped > 0) {
+			fprintf(stderr, "%d %s skipped", skipped,
+				skipped == 1 ? "entry" : "entries");
+		}
+		fputs(" (omit -q to see which)\n", stderr);
 	}
 
 	/* An empty result turns `export PATH="$(pathset)"` into an unusable shell.
