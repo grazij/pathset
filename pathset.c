@@ -1,8 +1,18 @@
+/* getopt_long(3) is not in POSIX, and every libc hides it behind different
+ * rules: the glibc and BSD/Darwin <getopt.h> declare it unconditionally, but
+ * musl declares it only under _GNU_SOURCE (or the deprecated _BSD_SOURCE,
+ * which makes glibc emit a #warning). _GNU_SOURCE is the one spelling all
+ * three honour, and it only widens what _POSIX_C_SOURCE selects -- the POSIX
+ * baseline below still records what the rest of this file relies on. Nothing
+ * here uses a call whose semantics _GNU_SOURCE changes (strerror_r, basename).
+ * Darwin ignores the macro entirely. */
+#define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
+#include <getopt.h>
 #include <pwd.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -531,53 +541,56 @@ static void filter_paths(Vec *v, int quiet, int verbose, int *warned) {
 }
 
 /*
- * getopt(3) understands short options only, and getopt_long is a GNU/BSD
- * extension, absent from the C standard. Only a handful of long forms are
- * worth accepting, so translate them into flags here and hand getopt an argv
- * with them removed. A bare "--" ends option scanning; everything after it is
- * passed through untouched.
+ * Long options are parsed by getopt_long(3) alongside the short ones, so argv
+ * is scanned once, left to right, and a long option no longer wins over an
+ * error that precedes it.
  *
- * Returns a malloc'd pointer array the caller frees. The strings in it are
- * borrowed from the original argv and must not be freed.
+ * Every long option carries a val of its own, outside the range of a char.
+ * That is what keeps the error paths below unambiguous: optopt holds a
+ * short-option character only when a short option failed, because an
+ * unrecognised long option leaves it 0 and a long option handed an argument
+ * it does not take (`--check=x`) leaves it set to that option's own val.
  */
-typedef struct {
-	int help;
-	int version;
-	int check;
-	int allow_empty;
-} LongOpts;
+enum { OPT_CHECK = 1000, OPT_ALLOW_EMPTY, OPT_VERSION, OPT_HELP };
 
-static char **filter_long_opts(int argc, char **argv, int *out_argc, LongOpts *lo) {
-	char **out = malloc((size_t)(argc + 1) * sizeof(*out));
-	if (!out) die(1, "out of memory");
-	int n = 0;
-	int passthrough = 0;
-	out[n++] = argv[0];
-	for (int i = 1; i < argc; i++) {
-		char *a = argv[i];
-		if (passthrough || a[0] != '-' || a[1] != '-') {
-			out[n++] = a;
-			continue;
-		}
-		if (strcmp(a, "--") == 0) {
-			passthrough = 1;
-			out[n++] = a;
-		} else if (strcmp(a, "--help") == 0) {
-			lo->help = 1;
-		} else if (strcmp(a, "--version") == 0) {
-			lo->version = 1;
-		} else if (strcmp(a, "--check") == 0) {
-			lo->check = 1;
-		} else if (strcmp(a, "--allow-empty") == 0) {
-			lo->allow_empty = 1;
-		} else {
-			usage(stderr);
-			die(2, "unknown argument: %s", a);
-		}
+static const struct option LONG_OPTS[] = {
+	{"check",       no_argument, NULL, OPT_CHECK},
+	{"allow-empty", no_argument, NULL, OPT_ALLOW_EMPTY},
+	{"version",     no_argument, NULL, OPT_VERSION},
+	{"help",        no_argument, NULL, OPT_HELP},
+	{NULL,          0,           NULL, 0}
+};
+
+/*
+ * The "--name" token getopt_long has just dealt with, or NULL if the thing it
+ * just dealt with was not one. glibc, musl and the BSDs all advance optind
+ * past a long option before returning -- success or failure -- so it sits at
+ * argv[optind - 1]; argv[optind] is checked too so a libc that reports before
+ * advancing still names the right token instead of a stale one.
+ */
+static const char *long_token(int argc, char **argv) {
+	for (int i = optind - 1; i <= optind; i++) {
+		if (i < 1 || i >= argc) continue;
+		const char *t = argv[i];
+		if (t[0] == '-' && t[1] == '-' && t[2] != '\0') return t;
 	}
-	out[n] = NULL;
-	*out_argc = n;
-	return out;
+	return NULL;
+}
+
+/*
+ * getopt_long accepts any unambiguous abbreviation of a long option, so
+ * `--che` would reach us as `--check`. pathset has never accepted one, and
+ * silently widening the spellings it answers to would turn every future
+ * rename into a breaking change. An inexact match is rejected with the same
+ * message an unknown option gets. No `=` can appear in a matched token: all
+ * four options take no argument, so `--check=x` fails inside getopt_long.
+ */
+static void reject_abbreviation(int argc, char **argv, const struct option *matched) {
+	const char *tok = long_token(argc, argv);
+	if (tok && strcmp(tok + 2, matched->name) != 0) {
+		usage(stderr);
+		die(2, "unknown argument: %s", tok);
+	}
 }
 
 int main(int argc, char **argv) {
@@ -587,17 +600,19 @@ int main(int argc, char **argv) {
 	int dedup = 0;
 	int verbose = 0;
 
-	LongOpts lo = {0};
-	int fargc;
-	char **fargv = filter_long_opts(argc, argv, &fargc, &lo);
-	if (lo.help) { usage(stdout); free(fargv); return 0; }
-	if (lo.version) { printf("%s %s\n", PROG, PATHSET_VERSION); free(fargv); return 0; }
+	int check = 0;
+	int allow_empty = 0;
 
 	/* Suppress getopt's auto-error so we control the exit code (must be 2)
 	 * and the message format. */
 	opterr = 0;
-	int opt;
-	while ((opt = getopt(fargc, fargv, ":c:k:dqvVh")) != -1) {
+	for (;;) {
+		/* getopt_long writes longidx only when a long option matched, so it
+		 * is reset every round rather than once before the loop. */
+		int longidx = -1;
+		int opt = getopt_long(argc, argv, ":c:k:dqvVh", LONG_OPTS, &longidx);
+		if (opt == -1) break;
+		if (longidx >= 0) reject_abbreviation(argc, argv, &LONG_OPTS[longidx]);
 		switch (opt) {
 		case 'c': cfg_override = optarg; break;
 		case 'k':
@@ -610,22 +625,29 @@ int main(int argc, char **argv) {
 		case 'd': dedup = 1; break;
 		case 'q': quiet = 1; break;
 		case 'v': verbose = 1; break;
+		case OPT_CHECK: check = 1; break;
+		case OPT_ALLOW_EMPTY: allow_empty = 1; break;
+		case OPT_VERSION:
 		case 'V': printf("%s %s\n", PROG, PATHSET_VERSION); return 0;
+		case OPT_HELP:
 		case 'h': usage(stdout); return 0;
 		case ':':
-			usage(stderr);
-			die(2, "-%c requires an argument", optopt);
 		case '?':
-		default:
+		default: {
+			const char *tok = long_token(argc, argv);
 			usage(stderr);
+			if (tok && (optopt == 0 || optopt >= OPT_CHECK))
+				die(2, "unknown argument: %s", tok);
+			if (opt == ':')
+				die(2, "-%c requires an argument", optopt);
 			die(2, "unknown argument: -%c", optopt);
 		}
+		}
 	}
-	if (optind < fargc) {
+	if (optind < argc) {
 		usage(stderr);
-		die(2, "unexpected argument: %s", fargv[optind]);
+		die(2, "unexpected argument: %s", argv[optind]);
 	}
-	free(fargv);
 
 	if (quiet) verbose = 0;
 
@@ -664,7 +686,7 @@ int main(int argc, char **argv) {
 	 * When skips explain the emptiness, exit 3 rather than 1: exiting 1 buries
 	 * the specific signal under the generic one, and the caller can no longer
 	 * tell a config that has rotted from one that was always empty. */
-	if (v.n == 0 && !lo.allow_empty) {
+	if (v.n == 0 && !allow_empty) {
 		if (skipped > 0) {
 			die(3, "refusing to print an empty result: %d %s skipped "
 				"(use --allow-empty to override)", skipped,
@@ -673,7 +695,7 @@ int main(int argc, char **argv) {
 		die(1, "refusing to print an empty result (use --allow-empty to override)");
 	}
 
-	if (!lo.check) print_path(&v);
+	if (!check) print_path(&v);
 
 	for (size_t i = 0; i < v.n; i++) free(v.items[i].path);
 	free(v.items);

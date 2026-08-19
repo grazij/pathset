@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Actions CI builds and runs the test suite on glibc (gcc and clang),
+  musl (gcc and clang, via Alpine) and macOS (clang), with warnings promoted
+  to errors on every leg. `getopt_long` is not in the C standard and each
+  libc exposes it on its own terms — musl only under `_GNU_SOURCE` — so the
+  hand-rolled long-option parser below existed largely because nothing would
+  have caught a portability break before a user did. Now something does.
+- Five test cases for the long-option contract, which until now was only
+  implied by the implementation: abbreviations, `--opt=value`, `--` ending
+  option scanning, and the argv ordering described below.
+
 ### Changed
 
 - **BREAKING** — an entry that is not a usable directory is now emitted with a
@@ -31,6 +43,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   warnings, 1 entry skipped`. A warned entry leaves the exit status at `0`, so
   under `-q` — where the per-entry warnings are gone and `$(...)` has already
   discarded the status — the summary is its only trace.
+
+- Long options are parsed by `getopt_long(3)` instead of a hand-rolled
+  pre-pass that stripped them out of `argv` before `getopt(3)` saw it. The
+  spellings accepted are unchanged — `--check`, `--allow-empty`, `--version`
+  and `--help`, each written out in full. An abbreviation such as `--che`,
+  and any `--opt=value` form, are still refused with `unknown argument` and
+  exit `2`, in the same words as before: `getopt_long` accepts abbreviations
+  on every libc that ships it, so pathset now rejects them deliberately
+  rather than by not having implemented them. Answering to a prefix would
+  make every future long-option rename a breaking change.
+- `argv` is read once, left to right, so the first option that ends the run
+  wins. `--help` and `--version` used to be lifted out of `argv` ahead of
+  everything else and won wherever they appeared. Only self-contradictory
+  mixtures change: `pathset -Z --help` now exits `2` on `-Z` instead of
+  printing help, `pathset --help --bogus` now prints help instead of exiting
+  `2`, and `pathset -c --help` now treats `--help` as the argument to `-c`
+  (a config file of that name, which fails to open) instead of printing
+  help. No single-purpose invocation is affected.
 
 ### Fixed
 

@@ -1120,6 +1120,56 @@ else
 	bad "--check empty guard" "rc=$rc82 err: $(cat "$WORK/err82")"
 fi
 
+# --- Test 83: an abbreviated long option is rejected ---
+t 83 'an abbreviated long option is rejected'
+"$BIN" --che -c "$cfg1" >/dev/null 2>"$WORK/err_abbr"
+rc_abbr=$?
+if [[ $rc_abbr -eq 2 ]] && grep -q 'unknown argument: --che$' "$WORK/err_abbr"; then
+	ok "an abbreviated long option is rejected and echoed as written"
+else
+	bad "--che" "rc=$rc_abbr err: $(cat "$WORK/err_abbr")"
+fi
+
+# --- Test 84: a long option given an argument it does not take is rejected ---
+t 84 'a long option given an argument it does not take is rejected'
+"$BIN" --check=1 -c "$cfg1" >/dev/null 2>"$WORK/err_leq"
+rc_leq=$?
+if [[ $rc_leq -eq 2 ]] && grep -q -- 'unknown argument: --check=1$' "$WORK/err_leq"; then
+	ok "--opt=value is rejected; no long option takes an argument"
+else
+	bad "--check=1" "rc=$rc_leq err: $(cat "$WORK/err_leq")"
+fi
+
+# --- Test 85: '--' ends option scanning ---
+t 85 "'--' ends option scanning"
+"$BIN" -c "$cfg1" -- --check >/dev/null 2>"$WORK/err_dd"
+rc_dd=$?
+if [[ $rc_dd -eq 2 ]] && grep -q -- 'unexpected argument: --check$' "$WORK/err_dd"; then
+	ok "'--' ends option scanning; what follows is a positional, and fatal"
+else
+	bad "-- ends options" "rc=$rc_dd err: $(cat "$WORK/err_dd")"
+fi
+
+# --- Test 86: argv is read left to right, so an earlier error wins ---
+t 86 'argv is read left to right, so an earlier error wins'
+"$BIN" -Z --help >/dev/null 2>"$WORK/err_ltr"
+rc_ltr=$?
+if [[ $rc_ltr -eq 2 ]] && grep -q 'unknown argument: -Z' "$WORK/err_ltr"; then
+	ok "a bad option before --help still exits 2"
+else
+	bad "-Z --help" "rc=$rc_ltr err: $(cat "$WORK/err_ltr")"
+fi
+
+# --- Test 87: ... and --help wins over what follows it ---
+t 87 '... and --help wins over what follows it'
+out_ltr2="$("$BIN" --help --bogus 2>"$WORK/err_ltr2")"
+rc_ltr2=$?
+if [[ $rc_ltr2 -eq 0 && "$out_ltr2" == Usage:* && ! -s "$WORK/err_ltr2" ]]; then
+	ok "--help exits before a later bad option is reached"
+else
+	bad "--help --bogus" "rc=$rc_ltr2 err: $(cat "$WORK/err_ltr2")"
+fi
+
 # --- Summary ---
 echo
 if [[ $LIST -eq 1 ]]; then
