@@ -1,0 +1,63 @@
+# Example pathset config for PATH (kind = path, the default).
+#
+# Copy to one of these locations (first match wins, see `pathset -h`):
+#   ~/.config/pathset/path        (XDG default — canonical)
+#   ~/.pathset/path               (legacy home location)
+#   $XDG_CONFIG_HOME/pathset/path (if XDG_CONFIG_HOME is set explicitly)
+#
+# Then add to your shell rc:
+#   zsh/bash:  export PATH="$(pathset -q -d)"
+#   fish:      set -gx PATH (pathset -q -d | string split :)
+#
+# Syntax (see `pathset -h` for the full list):
+#   - one directory per line, in priority order (first wins)
+#   - '#' starts a FULL-LINE comment only — '#' on the same line as a path
+#     is treated as part of the path, not a comment. If you want to annotate
+#     an entry, put the comment on its own line above it.
+#   - blank lines are ignored
+#   - leading '?' marks an entry as optional: silent skip if missing,
+#     and does NOT contribute to exit code 3
+#
+# Expansion happens before the directory check:
+#   ~/foo        ->  $HOME/foo                (only at start of entry)
+#   ~user/foo    ->  that user's home + /foo
+#   $VAR/foo     ->  env var expansion        (unset -> skip with warning)
+#   ${VAR}/foo   ->  braced form
+#
+# Run `pathset -c examples/path.example -v` to see what gets kept,
+# expanded, and skipped. Run with `-d` to dedup.
+
+# --- User-specific binaries -----------------------------------------------
+~/bin
+~/.local/bin
+# Platform-specific overlay; '?' so it's a no-op if you don't use it.
+?~/.local/macos/bin
+?~/.local/linux/bin
+
+# --- Homebrew -------------------------------------------------------------
+?$HOMEBREW_PREFIX/bin
+?$HOMEBREW_PREFIX/sbin
+
+# --- Language version managers (optional — present only if installed) -----
+# rust
+?$HOME/.cargo/bin
+# go
+?$HOME/go/bin
+# ruby (rbenv)
+?$HOME/.rbenv/shims
+# python (pyenv)
+?$HOME/.pyenv/shims
+# deno
+?$HOME/.deno/bin
+
+# --- System (required — warn + exit 3 if missing) -------------------------
+/usr/local/bin
+/usr/local/sbin
+/usr/bin
+/bin
+/usr/sbin
+/sbin
+
+# --- Apple-internal (macOS) -----------------------------------------------
+?/Library/Apple/usr/bin
+?/System/Cryptexes/App/usr/bin

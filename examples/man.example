@@ -1,0 +1,21 @@
+# Example pathset config for MANPATH (kind = man).
+#
+# Copy to:
+#   ~/.config/pathset/man         (canonical)
+#
+# Then add to your shell rc:
+#   zsh/bash:  export MANPATH="$(pathset -k man -q -d)"
+#   fish:      set -gx MANPATH (pathset -k man -q -d | string split :)
+#
+# Syntax is identical to the path config — see `pathset -h`.
+
+# --- User-installed man pages ---------------------------------------------
+?~/.local/share/man
+
+# --- Homebrew (macOS / Linux) ---------------------------------------------
+?$HOMEBREW_PREFIX/share/man
+?/opt/homebrew/share/man
+
+# --- System ---------------------------------------------------------------
+/usr/local/share/man
+/usr/share/man

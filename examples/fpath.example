@@ -1,0 +1,22 @@
+# Example pathset config for zsh's fpath (kind = fpath).
+#
+# Copy to:
+#   ~/.config/pathset/fpath       (canonical)
+#
+# Then add to your zshrc — fpath is an array, so split the colon-joined
+# output back into list elements:
+#
+#   fpath=( ${(s.:.)$(pathset -k fpath -q -d)} $fpath )
+#
+# Syntax is identical to the path config — see `pathset -h`.
+
+# --- User function dirs ---------------------------------------------------
+?~/.zsh/functions
+?~/.config/zsh/functions
+
+# --- Homebrew zsh completions / functions ---------------------------------
+?$HOMEBREW_PREFIX/share/zsh/site-functions
+?/opt/homebrew/share/zsh/site-functions
+
+# --- System ---------------------------------------------------------------
+/usr/share/zsh/site-functions

@@ -1,0 +1,8 @@
+# Build artifacts
+pathset
+*.o
+*.dSYM/
+
+# macOS noise
+.DS_Store
+
