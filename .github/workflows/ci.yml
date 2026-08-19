@@ -1,0 +1,119 @@
+# Build and test pathset on every C library it claims to support.
+#
+# pathset is one C11 file with no dependencies, so the only thing worth
+# runner minutes is the combination that actually varies underneath it: the C
+# library's headers and its getopt_long(3), and the compiler's reading of
+# -std=c11 -Wpedantic. Each leg below is a different one of those, not a
+# different flavour of the same one.
+#
+#   ubuntu / gcc, ubuntu / clang
+#     glibc, whose <getopt.h> declares getopt_long unconditionally. Both
+#     compilers, because gcc is the system compiler most builders will use and
+#     the two disagree about what -Wall -Wextra -Wpedantic is worth warning
+#     about.
+#
+#   macos / clang
+#     The BSD/Darwin getopt_long: a separate implementation with its own error
+#     returns, reached through headers that gate on __DARWIN_C_LEVEL rather
+#     than on _GNU_SOURCE. Also the only leg that exercises
+#     -mmacosx-version-min and the arm64 + x86_64 cross-build.
+#
+#   alpine / gcc, alpine / clang
+#     musl, the one libc that hides getopt_long behind _GNU_SOURCE. Without
+#     that macro pathset.c fails to compile here and nowhere else, so this leg
+#     is the whole reason the macro is in the file; drop the leg and the macro
+#     becomes cargo cult. It runs through `docker run` rather than a job-level
+#     `container:` because the runner's own actions are Node binaries linked
+#     against glibc and will not start inside a musl image.
+#
+# Deliberately not covered:
+#   - An Intel macOS runner. The x86_64 slice is compiled by `make universal`
+#     on the arm64 leg, which catches a compile break; it is not executed.
+#   - The BSDs, which have no first-party runner.
+#   - `make man`. help2man's output varies by version, so diffing the
+#     committed pathset.1 would fail on the tool rather than on pathset.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  glibc-and-darwin:
+    name: ${{ matrix.os }} / ${{ matrix.cc }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            cc: gcc
+          - os: ubuntu-latest
+            cc: clang
+          - os: macos-latest
+            cc: clang
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compiler and libc
+        run: |
+          "$CC" --version
+          uname -a
+
+      - name: make lint
+        run: make lint
+
+      - name: make build
+        run: make build
+
+      - name: make test
+        run: make test
+
+      # The default CFLAGS are warnings-only, so a new warning would otherwise
+      # scroll past a green run. CFLAGS is the builder's to override; the flags
+      # pathset needs to compile at all live outside it and survive this.
+      - name: Warnings are failures
+        run: |
+          make clean
+          make build CFLAGS="-Wall -Wextra -Wpedantic -Werror"
+
+      - name: Cross-build both macOS architectures
+        if: runner.os == 'macOS'
+        run: |
+          make universal
+          lipo -info ./pathset
+
+  musl:
+    name: alpine musl / gcc + clang
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: make lint, build, test under musl
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src alpine:3.20 sh -euc '
+            apk add --no-cache build-base bash clang
+            for cc in gcc clang; do
+              echo "==> $cc"
+              "$cc" --version | head -1
+              make clean
+              make lint CC="$cc"
+              make build CC="$cc"
+              make test CC="$cc"
+              make clean
+              make build CC="$cc" CFLAGS="-Wall -Wextra -Wpedantic -Werror"
+            done
+          '

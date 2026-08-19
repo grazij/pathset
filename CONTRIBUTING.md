@@ -45,6 +45,27 @@ make build CFLAGS="-O3 -Wall"
 never requires `help2man`. Run `make man` yourself after changing the `-h` or
 `-V` text, and commit the result.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs `make lint`, `make build` and `make test` on
+every push and pull request, across the three C libraries pathset is built
+against:
+
+| Leg | Why it is there |
+| --- | --- |
+| `ubuntu-latest`, gcc and clang | glibc, under both compilers — they disagree about what `-Wall -Wextra -Wpedantic` is worth warning about |
+| `macos-latest`, clang | the BSD/Darwin libc, `-mmacosx-version-min`, and the `arm64` + `x86_64` cross-build |
+| `alpine:3.20`, gcc and clang | musl, the only libc that hides `getopt_long` behind `_GNU_SOURCE` |
+
+Every leg also rebuilds with `-Werror`, since the default `CFLAGS` are
+warnings-only and a new warning would otherwise scroll past a green run. What
+CI deliberately does not cover, and why, is in the comments at the top of the
+workflow.
+
+CI is what makes a portability break visible before a user hits one. It does
+not replace `make release`, which stays the gate before tagging: it is the
+only thing that runs the suite against the exact binary being shipped.
+
 ## Releasing
 
 The order matters: `make formula` computes the formula's `sha256` by
