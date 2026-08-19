@@ -137,16 +137,18 @@ Starter configs are in [`examples/`](examples/): copy `path.example` to
 | Code | Meaning |
 | --- | --- |
 | `0` | Nothing was skipped. Entries emitted with a warning do not change this. |
-| `1` | Fatal — missing config, I/O error, empty result, out of memory. |
+| `1` | Fatal — missing config, I/O error, out of memory, or an empty result that no skip explains. |
 | `2` | Bad command-line argument. |
 | `3` | One or more entries were skipped — a failed expansion, or a `:` that cannot be represented. Output is still printed; the code lets a script catch a config that has rotted. |
 
 A failed directory check is a warning, not a skip. `?conditional` drops and
 `-d` duplicate drops do not produce exit `3` either.
 
-An empty result is exit `1`, not an empty line: `export PATH="$(pathset)"` with
-nothing to print leaves a shell that cannot find any command. Pass
-`--allow-empty` if that is genuinely what you want.
+An empty result is refused, not printed as an empty line:
+`export PATH="$(pathset)"` with nothing to print leaves a shell that cannot
+find any command. It exits `3` when skips account for the emptiness and `1`
+when nothing does — an empty or all-comment config. Pass `--allow-empty` if an
+empty result is genuinely what you want; the exit code is unchanged by it.
 
 ### Catching a rotted config
 

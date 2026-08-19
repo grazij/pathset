@@ -926,15 +926,15 @@ else
 	bad "summary plural" "err: $(cat "$WORK/err_pl")"
 fi
 
-# --- Test 67: every entry skipped -> exit 1, nothing on stdout ---
-t 67 'every entry skipped -> exit 1, nothing on stdout'
+# --- Test 67: every entry skipped -> exit 3, nothing on stdout ---
+t 67 'every entry skipped -> exit 3, nothing on stdout'
 cfg_ae="$WORK/cfg_ae"
 unset PATHSET_AE_1 PATHSET_AE_2
 printf '$PATHSET_AE_1/nope1\n$PATHSET_AE_2/nope2\n' >"$cfg_ae"
 got_ae="$("$BIN" -c "$cfg_ae" -q 2>"$WORK/err_ae")"
 rc_ae=$?
-if [[ -z "$got_ae" && $rc_ae -eq 1 ]] && grep -q -- '--allow-empty' "$WORK/err_ae"; then
-	ok "all entries skipped is fatal (exit 1), not a silent empty PATH"
+if [[ -z "$got_ae" && $rc_ae -eq 3 ]] && grep -q -- '--allow-empty' "$WORK/err_ae"; then
+	ok "skips that empty the result exit 3, not 1, and still refuse stdout"
 else
 	bad "all skipped" "rc=$rc_ae got: $got_ae err: $(cat "$WORK/err_ae")"
 fi
@@ -1096,6 +1096,28 @@ if [[ $rc80 -eq 3 ]] \
 	ok "-q summary carries both counts; only the skip reaches the exit code"
 else
 	bad "combined summary" "rc=$rc80 err: $(cat "$WORK/err80")"
+fi
+
+# --- Test 81: an empty result that no skip explains stays exit 1 ---
+t 81 'an empty result that no skip explains stays exit 1'
+cfg81="$WORK/cfg81"
+printf '# just a comment\n\n' >"$cfg81"
+got81="$("$BIN" -c "$cfg81" 2>"$WORK/err81")"
+rc81=$?
+if [[ -z "$got81" && $rc81 -eq 1 ]] && grep -q -- '--allow-empty' "$WORK/err81"; then
+	ok "a comment-only config is exit 1, not 3"
+else
+	bad "comment-only cfg" "rc=$rc81 got: $got81 err: $(cat "$WORK/err81")"
+fi
+
+# --- Test 82: --check does not suppress the empty guard ---
+t 82 '--check does not suppress the empty guard'
+"$BIN" -c "$cfg_ae" --check >/dev/null 2>"$WORK/err82"
+rc82=$?
+if [[ $rc82 -eq 3 ]] && grep -q 'refusing to print an empty result' "$WORK/err82"; then
+	ok "--check on an all-skipped config still refuses, exit 3"
+else
+	bad "--check empty guard" "rc=$rc82 err: $(cat "$WORK/err82")"
 fi
 
 # --- Summary ---

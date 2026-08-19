@@ -98,8 +98,8 @@ static void usage(FILE *out) {
 		"Exit codes:\n"
 		"  0  nothing was skipped (an entry emitted with a warning is not\n"
 		"     a skip)\n"
-		"  1  fatal error (missing config, I/O error, empty result, out of\n"
-		"     memory)\n"
+		"  1  fatal error (missing config, I/O error, out of memory, or an\n"
+		"     empty result that no skip explains)\n"
 		"  2  bad command-line argument\n"
 		"  3  one or more entries were skipped: an expansion failure, or a\n"
 		"     ':' that cannot be represented. '?conditional' drops and\n"
@@ -660,8 +660,16 @@ int main(int argc, char **argv) {
 	}
 
 	/* An empty result turns `export PATH="$(pathset)"` into an unusable shell.
-	 * No config means to say that, so it is fatal unless asked for outright. */
+	 * No config means to say that, so it is fatal unless asked for outright.
+	 * When skips explain the emptiness, exit 3 rather than 1: exiting 1 buries
+	 * the specific signal under the generic one, and the caller can no longer
+	 * tell a config that has rotted from one that was always empty. */
 	if (v.n == 0 && !lo.allow_empty) {
+		if (skipped > 0) {
+			die(3, "refusing to print an empty result: %d %s skipped "
+				"(use --allow-empty to override)", skipped,
+				skipped == 1 ? "entry was" : "entries were");
+		}
 		die(1, "refusing to print an empty result (use --allow-empty to override)");
 	}
 

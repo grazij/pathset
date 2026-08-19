@@ -32,6 +32,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   under `-q` — where the per-entry warnings are gone and `$(...)` has already
   discarded the status — the summary is its only trace.
 
+### Fixed
+
+- A config whose entries were all skipped hit the empty-result guard and
+  exited `1`, masking the exit `3` that says why. Exit `1` now means an empty
+  result that no skip explains — an empty or all-comment config — and exit `3`
+  covers the rest. Both are still refused rather than printed; `--allow-empty`
+  still overrides the refusal without changing the code.
+
 ## 0.4.0
 
 ### Added
