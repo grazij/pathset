@@ -33,14 +33,7 @@ ALL_CFLAGS = $(REQUIRED_CFLAGS) $(CPPFLAGS) $(CFLAGS)
 # x86_64 macOS.
 ARCH_FLAGS ?=
 
-# Homebrew tap location and GitHub coordinates used by the `formula` target.
-# Override on the command line if your layout differs:
-#   make formula TAP_DIR=../my-tap GITHUB_USER=alice GITHUB_REPO=pathset
-TAP_DIR ?= ../homebrew-tap
-GITHUB_USER ?= grazij
-GITHUB_REPO ?= pathset
-
-.PHONY: all build test clean install uninstall run lint release universal release-universal man formula formula-verify
+.PHONY: all build test clean install uninstall run lint release universal release-universal man
 
 all: build
 
@@ -106,48 +99,3 @@ run: build
 
 lint:
 	$(CC) $(ALL_CFLAGS) -fsyntax-only pathset.c
-
-# Bump the Homebrew formula to v$(VERSION): compute the SHA256 of the
-# tagged tarball, rewrite Formula/pathset.rb, commit + push here, then
-# mirror to TAP_DIR and commit + push there. Assumes the tag has already
-# been pushed to GitHub.
-formula:
-	@set -e; \
-	echo "==> $(BINARY) $(VERSION) — bumping Homebrew formula"; \
-	if [ ! -d "$(TAP_DIR)/Formula" ]; then \
-		echo "error: $(TAP_DIR)/Formula not found (override with TAP_DIR=...)" >&2; \
-		exit 1; \
-	fi; \
-	tarball="https://github.com/$(GITHUB_USER)/$(GITHUB_REPO)/archive/refs/tags/v$(VERSION).tar.gz"; \
-	echo "    fetching $$tarball"; \
-	tmp=$$(mktemp); \
-	trap 'rm -f "$$tmp"' EXIT; \
-	curl -fsSL "$$tarball" -o "$$tmp"; \
-	sha=$$(shasum -a 256 "$$tmp" | awk '{print $$1}'); \
-	if [ -z "$$sha" ]; then \
-		echo "error: empty SHA — is tag v$(VERSION) pushed to $(GITHUB_USER)/$(GITHUB_REPO)?" >&2; \
-		exit 1; \
-	fi; \
-	echo "    sha256: $$sha"; \
-	sed -i.bak -E "s|^(  url )\".*\"|\1\"$$tarball\"|" Formula/pathset.rb; \
-	sed -i.bak -E "s|^(  sha256 )\".*\"|\1\"$$sha\"|" Formula/pathset.rb; \
-	rm -f Formula/pathset.rb.bak; \
-	git add Formula/pathset.rb; \
-	git commit -m "chore(formula): bump to v$(VERSION)"; \
-	git push origin main; \
-	cp Formula/pathset.rb "$(TAP_DIR)/Formula/pathset.rb"; \
-	cd "$(TAP_DIR)" && \
-		git add Formula/pathset.rb && \
-		git diff --cached --stat && \
-		git commit -m "$(BINARY) $(VERSION)" && \
-		git push origin main; \
-	echo "==> formula published to $(GITHUB_USER)/homebrew-tap"; \
-	echo "    sanity check: make formula-verify"
-
-# First-time / sanity-check install via the published tap.
-formula-verify:
-	brew untap $(GITHUB_USER)/tap 2>/dev/null || true
-	brew tap $(GITHUB_USER)/tap
-	brew install $(GITHUB_USER)/tap/$(BINARY)
-	$(BINARY) -V
-	brew uninstall $(BINARY)
