@@ -35,14 +35,27 @@ static const char *PROG = "pathset";
  * into PATH, MANPATH, INFOPATH, or fpath. */
 #define DEFAULT_CONFIG "path"
 
-static void die(int code, const char *fmt, ...) {
-	va_list ap;
-	va_start(ap, fmt);
+static _Noreturn void vdie(int code, int hint, const char *fmt, va_list ap) {
 	fprintf(stderr, "%s: ", PROG);
 	vfprintf(stderr, fmt, ap);
 	fputc('\n', stderr);
-	va_end(ap);
+	/* A usage error names the one thing that was wrong and points at -h.
+	 * Dumping the whole help here buried that line under three screenfuls. */
+	if (hint) fprintf(stderr, "Try '%s --help' for more information.\n", PROG);
 	exit(code);
+}
+
+static void die(int code, const char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	vdie(code, 0, fmt, ap);
+}
+
+/* Every bad-argument exit: always 2, always with the -h pointer. */
+static void die_usage(const char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	vdie(2, 1, fmt, ap);
 }
 
 static void usage(FILE *out) {
@@ -614,8 +627,7 @@ static void reject_abbreviation(int argc, char **argv, const struct option *matc
 	const char *given = tok + 2;
 	size_t n = strcspn(given, "=");
 	if (strlen(matched->name) != n || strncmp(given, matched->name, n) != 0) {
-		usage(stderr);
-		die(2, "unknown argument: %s", tok);
+		die_usage("unknown argument: %s", tok);
 	}
 }
 
@@ -650,8 +662,7 @@ int main(int argc, char **argv) {
 		case OPT_FILE:
 		case 'f':
 			if (!*optarg) {
-				usage(stderr);
-				die(2, "-f needs a config name or a path, not an empty string");
+				die_usage("-f needs a config name or a path, not an empty string");
 			}
 			if (strchr(optarg, '/')) {
 				cfg_override = optarg;
@@ -675,20 +686,18 @@ int main(int argc, char **argv) {
 		case '?':
 		default: {
 			const char *tok = long_token(argc, argv);
-			usage(stderr);
 			if (opt == ':' && tok)
-				die(2, "%s requires an argument", tok);
+				die_usage("%s requires an argument", tok);
 			if (tok && (optopt == 0 || optopt >= OPT_CHECK))
-				die(2, "unknown argument: %s", tok);
+				die_usage("unknown argument: %s", tok);
 			if (opt == ':')
-				die(2, "-%c requires an argument", optopt);
-			die(2, "unknown argument: -%c", optopt);
+				die_usage("-%c requires an argument", optopt);
+			die_usage("unknown argument: -%c", optopt);
 		}
 		}
 	}
 	if (optind < argc) {
-		usage(stderr);
-		die(2, "unexpected argument: %s", argv[optind]);
+		die_usage("unexpected argument: %s", argv[optind]);
 	}
 
 	if (quiet) verbose = 0;

@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- An argument error now prints the message and a one-line pointer instead of
+  the whole help text. `pathset -z` wrote 68 lines to stderr, of which one
+  said what was wrong; it now writes two:
+
+  ```console
+  $ pathset -z
+  pathset: unknown argument: -z
+  Try 'pathset --help' for more information.
+  ```
+
+  Exit code is still `2` and the message wording is unchanged, so anything
+  grepping stderr for it keeps working. `-h` is unaffected: it still prints
+  the full help, on stdout, and `pathset.1` is generated from that text and
+  needs no regeneration.
+
 ## 0.7.0
 
 ### Changed

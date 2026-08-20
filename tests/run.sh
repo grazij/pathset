@@ -1322,6 +1322,22 @@ else
 	bad "-f empty" "--file= rc=$rc99a / -f '' rc=$rc99b: $(cat "$WORK/err99b")"
 fi
 
+# --- Test 100: an argument error is a hint, not the whole help ---
+t 100 'an argument error is a hint, not the whole help'
+"$BIN" -z >"$WORK/out100" 2>"$WORK/err100"
+rc100=$?
+lines100=$(wc -l <"$WORK/err100" | tr -d ' ')
+"$BIN" -h >"$WORK/h100" 2>"$WORK/herr100"
+if [[ $rc100 -eq 2 && $lines100 -eq 2 && ! -s "$WORK/out100" ]] \
+	&& grep -q '^pathset: unknown argument: -z$' "$WORK/err100" \
+	&& grep -q "^Try 'pathset --help' for more information\.$" "$WORK/err100" \
+	&& ! grep -q '^Usage:' "$WORK/err100" \
+	&& [[ ! -s "$WORK/herr100" ]] && grep -q '^Usage:' "$WORK/h100"; then
+	ok "an error prints 2 stderr lines and points at -h; -h still prints the help on stdout"
+else
+	bad "usage hint" "rc=$rc100 stderr lines=$lines100: $(cat "$WORK/err100")"
+fi
+
 # --- Summary ---
 echo
 if [[ $LIST -eq 1 ]]; then
