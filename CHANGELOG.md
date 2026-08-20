@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- A read error on the config file now reports the read, not the allocator.
+  `errno` was consumed after `free(line)`, and `free` is permitted to set it
+  — glibc's does — so a genuine I/O failure could print an unrelated reason.
+  Never observed on Darwin, where `free` leaves `errno` alone; this is a
+  Linux-only wrong message.
+
+- A failed `~user` lookup is no longer reported as a nonexistent user.
+  `getpwnam` returning NULL was always read as "unknown user", so an
+  unreachable directory service (LDAP/AD-backed accounts) sent the reader off
+  to fix a config line that was correct. It now distinguishes the two:
+  `cannot look up user 'x': <reason>` when the lookup itself failed,
+  `unknown user 'x'` when the name is genuinely absent.
+
+### Changed
+
+- CI uses `actions/checkout@v5`; v4 warned that Node 20 is deprecated.
+
 ## 0.7.1
 
 ### Changed

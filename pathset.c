@@ -297,8 +297,12 @@ static void read_paths(const char *path, Vec *out, int quiet, int *skipped) {
 		entry[n] = '\0';
 		vec_push(out, entry, conditional);
 	}
+	/* getline's errno has to be taken before anything else runs: free() is
+	 * allowed to set errno, and glibc's does, which would leave strerror
+	 * describing the allocator rather than the read that actually failed. */
+	int read_err = errno;
 	free(line);
-	if (ferror(f)) die(1, "read error on '%s': %s", path, strerror(errno));
+	if (ferror(f)) die(1, "read error on '%s': %s", path, strerror(read_err));
 	if (fclose(f) != 0) die(1, "close error on '%s': %s", path, strerror(errno));
 }
 
@@ -347,10 +351,17 @@ static void buf_append(Buf *b, const char *s, size_t len) {
 	b->buf[b->n] = '\0';
 }
 
-/* Returns a malloc'd home dir, or NULL if the user is unknown or has none. */
-static char *lookup_user_home(const char *user) {
+/*
+ * Returns a malloc'd home dir, or NULL if the user is unknown or has none.
+ * *lookup_err is 0 when the name simply does not exist, and getpwnam's errno
+ * when the lookup itself failed. A directory service being unreachable is a
+ * transient fault, not a wrong name, and calling it "unknown user" sends the
+ * reader to edit a config line that was right all along.
+ */
+static char *lookup_user_home(const char *user, int *lookup_err) {
 	errno = 0;
 	struct passwd *pw = getpwnam(user);
+	*lookup_err = pw ? 0 : errno;
 	if (!pw || !pw->pw_dir || !*pw->pw_dir) return NULL;
 	return xstrdup(pw->pw_dir);
 }
@@ -382,9 +393,15 @@ static char *expand_entry(const char *in, const char **err) {
 			char user[128];
 			memcpy(user, u, ulen);
 			user[ulen] = '\0';
-			home = lookup_user_home(user);
+			int lookup_err = 0;
+			home = lookup_user_home(user, &lookup_err);
 			if (!home) {
-				snprintf(errbuf, sizeof errbuf, "unknown user '%s'", user);
+				if (lookup_err) {
+					snprintf(errbuf, sizeof errbuf, "cannot look up user '%s': %s",
+						user, strerror(lookup_err));
+				} else {
+					snprintf(errbuf, sizeof errbuf, "unknown user '%s'", user);
+				}
 				*err = errbuf;
 				goto fail;
 			}
