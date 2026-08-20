@@ -4,8 +4,8 @@
 #   ~/.config/pathset/man         (canonical)
 #
 # Then add to your shell rc:
-#   zsh/bash:  export MANPATH="$(pathset -f man -q -d)"
-#   fish:      set -gx MANPATH (pathset -f man -q -d | string split :)
+#   zsh/bash:  export MANPATH="$(pathset -f man -q)"
+#   fish:      set -gx MANPATH (pathset -f man -q | string split :)
 #
 # Syntax is identical to the path config — see `pathset -h`.
 

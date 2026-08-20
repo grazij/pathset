@@ -249,8 +249,8 @@ else
 	bad "non-dir emit" "got: $got12 / err: $(cat "$WORK/err12")"
 fi
 
-# --- Test 13: -d drops duplicate entries, first wins ---
-t 13 '-d drops duplicate entries, first wins'
+# --- Test 13: duplicate entries are dropped, first wins ---
+t 13 'duplicate entries are dropped, first wins'
 cfg13="$WORK/cfg13"
 cat >"$cfg13" <<EOF
 $A
@@ -259,24 +259,25 @@ $A
 $C
 $B
 EOF
-got13="$("$BIN" -f "$cfg13" -d 2>/dev/null)"
+got13="$("$BIN" -f "$cfg13" 2>/dev/null)"
 if [[ "$got13" == "$A:$B:$C" ]]; then
-	ok "-d drops duplicates, preserves first occurrence"
+	ok "duplicates dropped, first occurrence preserved"
 else
-	bad "-d dedup" "got: $got13"
+	bad "dedup" "got: $got13"
 fi
 
-# --- Test 14: without -d, duplicates are preserved ---
-t 14 'without -d, duplicates are preserved'
-got14="$("$BIN" -f "$cfg13" 2>/dev/null)"
-if [[ "$got14" == "$A:$B:$A:$C:$B" ]]; then
-	ok "duplicates preserved without -d"
+# --- Test 14: -d is no longer an option ---
+t 14 '-d is no longer an option'
+"$BIN" -f "$cfg13" -d >/dev/null 2>"$WORK/err14"
+rc14=$?
+if [[ $rc14 -eq 2 ]] && grep -q 'unknown argument: -d' "$WORK/err14"; then
+	ok "-d is rejected: dedup is unconditional, not a flag"
 else
-	bad "no-dedup default" "got: $got14"
+	bad "-d removed" "rc=$rc14 err: $(cat "$WORK/err14")"
 fi
 
-# --- Test 15: -d combined with a ?conditional drop ---
-t 15 '-d combined with a ?conditional drop'
+# --- Test 15: dedup combined with a ?conditional drop ---
+t 15 'dedup combined with a ?conditional drop'
 cfg15="$WORK/cfg15"
 cat >"$cfg15" <<EOF
 $A
@@ -284,11 +285,11 @@ $A
 $A
 $B
 EOF
-got15="$("$BIN" -f "$cfg15" -d 2>/dev/null)"
+got15="$("$BIN" -f "$cfg15" 2>/dev/null)"
 if [[ "$got15" == "$A:$B" ]]; then
-	ok "-d runs after filter; dropped entries don't shadow real ones"
+	ok "dedup runs after filter; dropped entries don't shadow real ones"
 else
-	bad "-d + filter" "got: $got15"
+	bad "dedup + filter" "got: $got15"
 fi
 
 # --- Test 16: -v prints kept entries on stderr ---
@@ -341,7 +342,7 @@ $A
 $B
 $A
 EOF
-got19="$("$BIN" -f "$cfg19" -d -v 2>"$WORK/err19")"
+got19="$("$BIN" -f "$cfg19" -v 2>"$WORK/err19")"
 if [[ "$got19" == "$A:$B" ]] && grep -q "dropping duplicate '$A'" "$WORK/err19"; then
 	ok "-v reports dropped duplicates"
 else
@@ -521,15 +522,15 @@ else
 	bad "-q + exit" "rc=$rc"
 fi
 
-# --- Test 33: -d alone (no skips) exits 0, dedup is not a skip ---
-t 33 '-d alone (no skips) exits 0, dedup is not a skip'
+# --- Test 33: a deduped run with no skips exits 0 ---
+t 33 'a deduped run with no skips exits 0'
 cfg35="$WORK/cfg35"
 cat >"$cfg35" <<EOF
 $A
 $A
 $B
 EOF
-"$BIN" -f "$cfg35" -d >/dev/null 2>/dev/null
+"$BIN" -f "$cfg35" >/dev/null 2>/dev/null
 rc=$?
 if [[ $rc -eq 0 ]]; then
 	ok "dedup does not count as skip (exit 0)"
@@ -537,17 +538,17 @@ else
 	bad "dedup exit" "rc=$rc"
 fi
 
-# --- Test 34: bundled flags (-dq) ---
-t 34 'bundled flags (-dq)'
+# --- Test 34: bundled flags (-qv) ---
+t 34 'bundled flags (-qv)'
 cfg36="$WORK/cfg36"
 cat >"$cfg36" <<EOF
 $A
 $A
 $B
 EOF
-got36="$("$BIN" -f "$cfg36" -dq 2>"$WORK/err36")"
+got36="$("$BIN" -f "$cfg36" -qv 2>"$WORK/err36")"
 if [[ "$got36" == "$A:$B" ]] && [[ ! -s "$WORK/err36" ]]; then
-	ok "bundled short flags (-dq)"
+	ok "bundled short flags (-qv); -q still wins over -v"
 else
 	bad "bundled flags" "got: $got36 / err: $(cat "$WORK/err36")"
 fi
@@ -861,47 +862,52 @@ else
 	bad "--bogus" "rc=$rc_lb stderr: $(cat "$WORK/err_lb")"
 fi
 
-# --- Test 60: -d treats a trailing slash as the same directory ---
-t 60 '-d treats a trailing slash as the same directory'
+# --- Test 60: dedup treats a trailing slash as the same directory ---
+t 60 'dedup treats a trailing slash as the same directory'
 cfg_ts="$WORK/cfg_ts"
 printf '%s\n%s/\n' "$A" "$A" >"$cfg_ts"
-got_ts="$("$BIN" -f "$cfg_ts" -d 2>/dev/null)"
+got_ts="$("$BIN" -f "$cfg_ts" 2>/dev/null)"
 if [[ "$got_ts" == "$A" ]]; then
-	ok "-d collapses '/x' and '/x/', keeping the first as declared"
+	ok "dedup collapses '/x' and '/x/', keeping the first as declared"
 else
-	bad "-d trailing slash" "got: $got_ts"
+	bad "dedup trailing slash" "got: $got_ts"
 fi
 
 # --- Test 61: the surviving entry keeps the form it was declared in ---
 t 61 'the surviving entry keeps the form it was declared in'
 cfg_ts2="$WORK/cfg_ts2"
 printf '%s/\n%s\n' "$A" "$A" >"$cfg_ts2"
-got_ts2="$("$BIN" -f "$cfg_ts2" -d 2>/dev/null)"
+got_ts2="$("$BIN" -f "$cfg_ts2" 2>/dev/null)"
 if [[ "$got_ts2" == "$A/" ]]; then
-	ok "-d emits the first occurrence verbatim, slash and all"
+	ok "dedup emits the first occurrence verbatim, slash and all"
 else
-	bad "-d trailing slash form" "got: $got_ts2"
+	bad "dedup trailing slash form" "got: $got_ts2"
 fi
 
-# --- Test 62: without -d both forms are still preserved ---
-t 62 'without -d both forms are still preserved'
-got_ts3="$("$BIN" -f "$cfg_ts" 2>/dev/null)"
-if [[ "$got_ts3" == "$A:$A/" ]]; then
-	ok "without -d both slash forms are preserved"
+# --- Test 62: dedup runs after expansion, so ~ and $HOME collapse ---
+t 62 'dedup runs after expansion, so ~ and $HOME collapse'
+homedd="$WORK/home-dedup"
+mkdir -p "$homedd/bin"
+: >"$homedd/bin/file"
+cfg_ts3="$WORK/cfg_ts3"
+printf '~/bin\n$HOME/bin\n' >"$cfg_ts3"
+got_ts3="$(HOME="$homedd" "$BIN" -f "$cfg_ts3" 2>/dev/null)"
+if [[ "$got_ts3" == "$homedd/bin" ]]; then
+	ok "'~/bin' and '\$HOME/bin' collapse to one entry"
 else
-	bad "no -d trailing slash" "got: $got_ts3"
+	bad "dedup after expansion" "got: $got_ts3"
 fi
 
-# --- Test 63: -d does not merge distinct dirs sharing a prefix ---
-t 63 '-d does not merge distinct dirs sharing a prefix'
+# --- Test 63: dedup does not merge distinct dirs sharing a prefix ---
+t 63 'dedup does not merge distinct dirs sharing a prefix'
 mkdir -p "${A}x" && : >"${A}x/file"
 cfg_ts4="$WORK/cfg_ts4"
 printf '%s\n%sx\n' "$A" "$A" >"$cfg_ts4"
-got_ts4="$("$BIN" -f "$cfg_ts4" -d 2>/dev/null)"
+got_ts4="$("$BIN" -f "$cfg_ts4" 2>/dev/null)"
 if [[ "$got_ts4" == "$A:${A}x" ]]; then
-	ok "-d does not merge '/x' and '/xy'"
+	ok "dedup does not merge '/x' and '/xy'"
 else
-	bad "-d prefix collision" "got: $got_ts4"
+	bad "dedup prefix collision" "got: $got_ts4"
 fi
 
 # --- Test 64: -q on a clean config stays completely silent ---

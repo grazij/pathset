@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING** — `-d` is gone and duplicate dropping is now unconditional.
+  Every documented invocation paired it with `-q`, and emitting a `PATH` with
+  the same directory twice was never the useful behaviour, so the flag only
+  ever had one setting worth using. The option is not accepted as a no-op:
+  `pathset -q -d` now exits `2` with `unknown argument: -d`, the same hard
+  removal `-c` and `-k` got in 0.6.0. Drop the `-d` from your shell rc.
+
+  Nothing else changes. Dedup still runs after expansion, so `~/bin` and
+  `$HOME/bin` still collapse; a trailing slash still does not make an entry
+  distinct; duplicate drops still do not affect the exit code, and `-v` still
+  reports each one.
+
 ## 0.6.0
 
 ### Added

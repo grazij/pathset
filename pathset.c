@@ -47,23 +47,23 @@ static void die(int code, const char *fmt, ...) {
 
 static void usage(FILE *out) {
 	fprintf(out,
-		"Usage: %s [-f NAME|FILE] [-d] [-q] [-v] [-s] [--check] [--allow-empty]\n"
+		"Usage: %s [-f NAME|FILE] [-q] [-v] [-s] [--check] [--allow-empty]\n"
 		"   or: %s [-V|--version] [-h|--help]\n"
 		"\n"
 		"Reads a list of directories from a config file and prints them to stdout\n"
-		"joined by ':', or by a space under -s. Compose with $(...):\n"
-		"  export PATH=\"$(%s -q -d)\"\n"
-		"  export MANPATH=\"$(%s -f man -q -d)\"\n"
-		"  export INFOPATH=\"$(%s -f info -q -d)\"\n"
-		"  fpath=( $(%s -f fpath -q -d -s) )   # zsh array\n"
+		"joined by ':', or by a space under -s. Duplicate entries are dropped,\n"
+		"first occurrence wins; a trailing slash does not make an entry distinct.\n"
+		"Compose with $(...):\n"
+		"  export PATH=\"$(%s -q)\"\n"
+		"  export MANPATH=\"$(%s -f man -q)\"\n"
+		"  export INFOPATH=\"$(%s -f info -q)\"\n"
+		"  fpath=( $(%s -f fpath -q -s) )   # zsh array\n"
 		"\n"
 		"Options:\n"
 		"  -f, --file NAME    read the config named NAME, looked up as shown below\n"
 		"                     (default: path). An argument containing '/' is read\n"
 		"                     as a path to a file instead, with no fallback if it\n"
 		"                     is missing.\n"
-		"  -d                 drop duplicate entries (first occurrence wins; a\n"
-		"                     trailing slash does not make an entry distinct)\n"
 		"  -q                 suppress the per-entry warnings. A one-line summary\n"
 		"                     is still printed: $(...) discards the exit status, so\n"
 		"                     it would otherwise be the only signal, and silent.\n"
@@ -102,8 +102,8 @@ static void usage(FILE *out) {
 		"  4. $HOME/.pathset/<name>           (legacy home location)\n"
 		"\n"
 		"Shell setup (add to your shell rc):\n"
-		"  zsh / bash:  export PATH=\"$(%s -q -d)\"\n"
-		"  fish:        set -gx PATH (%s -q -d | string split :)\n"
+		"  zsh / bash:  export PATH=\"$(%s -q)\"\n"
+		"  fish:        set -gx PATH (%s -q | string split :)\n"
 		"\n"
 		"Exit codes:\n"
 		"  0  nothing was skipped (an entry emitted with a warning is not\n"
@@ -113,7 +113,7 @@ static void usage(FILE *out) {
 		"  2  bad command-line argument\n"
 		"  3  one or more entries were skipped: an expansion failure, or a\n"
 		"     character the separator cannot represent. '?conditional' drops\n"
-		"     and dedup drops do NOT contribute\n",
+		"     and duplicate drops do NOT contribute\n",
 		PROG, PROG, PROG, PROG, PROG, PROG, PROG, PROG);
 }
 
@@ -623,7 +623,6 @@ int main(int argc, char **argv) {
 	const char *cfg_override = NULL;
 	const char *cfg_name = DEFAULT_CONFIG;
 	int quiet = 0;
-	int dedup = 0;
 	int verbose = 0;
 	int words = 0;
 
@@ -637,7 +636,7 @@ int main(int argc, char **argv) {
 		/* getopt_long writes longidx only when a long option matched, so it
 		 * is reset every round rather than once before the loop. */
 		int longidx = -1;
-		int opt = getopt_long(argc, argv, ":f:dqvVsh", LONG_OPTS, &longidx);
+		int opt = getopt_long(argc, argv, ":f:qvVsh", LONG_OPTS, &longidx);
 		if (opt == -1) break;
 		if (longidx >= 0) reject_abbreviation(argc, argv, &LONG_OPTS[longidx]);
 		switch (opt) {
@@ -664,7 +663,6 @@ int main(int argc, char **argv) {
 			break;
 		case OPT_SPACE:
 		case 's': words = 1; break;
-		case 'd': dedup = 1; break;
 		case 'q': quiet = 1; break;
 		case 'v': verbose = 1; break;
 		case OPT_CHECK: check = 1; break;
@@ -702,10 +700,10 @@ int main(int argc, char **argv) {
 	read_paths(cfg, &v);
 	expand_paths(&v, quiet, verbose, &skipped, words);
 	filter_paths(&v, quiet, verbose, &warned);
-	if (dedup) dedup_paths(&v, verbose);
+	dedup_paths(&v, verbose);
 
 	/* -q drops the per-entry warnings, and the documented invocation
-	 * `export PATH="$(pathset -q -d)"` discards the exit status too: the shell
+	 * `export PATH="$(pathset -q)"` discards the exit status too: the shell
 	 * reports export's status, not ours. Between them a rotted config could
 	 * degrade PATH with no signal at all, so one summary line survives -q.
 	 * It counts warnings as well as skips: a warned entry leaves the exit

@@ -17,7 +17,9 @@ loads only `~/.zshenv`, so it inherits whatever `path_helper` produced.
 
 `pathset` forces the order you declared. Set it once in `~/.zshenv` and shells
 and Shortcuts agree. A directory that doesn't exist, or is empty, is still
-emitted — with a warning — unless you mark it `?`.
+emitted — with a warning — unless you mark it `?`. Duplicates are always
+dropped, first occurrence wins: a trailing slash does not make an entry
+distinct, so `/opt/bin` and `/opt/bin/` collapse.
 
 The output is data, not a shell command — compose it with `$(...)` into any
 variable you like.
@@ -38,14 +40,13 @@ takes the same `PREFIX`. `make universal` builds a macOS fat binary
 ## Usage
 
 ```
-pathset [-f NAME|FILE] [-d] [-q] [-v] [-s] [--check] [--allow-empty]
+pathset [-f NAME|FILE] [-q] [-v] [-s] [--check] [--allow-empty]
 pathset [-V|--version] [-h|--help]
 ```
 
 | Flag | Meaning |
 | --- | --- |
 | `-f`, `--file NAME` | Which config to read. A bare name is looked up under `pathset/` — see [Config lookup](#config-lookup) — and any name works; `path` is the default. An argument containing `/` is a path to a file instead, read with no fallback if it is missing. |
-| `-d` | Drop duplicates; first occurrence wins. A trailing slash does not make an entry distinct, so `/opt/bin` and `/opt/bin/` collapse. |
 | `-q` | Suppress the per-entry warnings. A one-line summary is still printed — see [Catching a rotted config](#catching-a-rotted-config). |
 | `-v` | Print expansions, kept entries, and dropped duplicates on stderr. `-q` wins. |
 | `-s`, `--space` | Join with a space instead of `:`, so the output reads as a shell array. Whitespace then becomes the unrepresentable character and `:` stops being one — see [Exit codes](#exit-codes). |
@@ -58,16 +59,16 @@ Add to your shell rc:
 
 ```sh
 # zsh / bash
-export PATH="$(pathset -q -d)"
-export MANPATH="$(pathset -f man -q -d)"
-export INFOPATH="$(pathset -f info -q -d)"
+export PATH="$(pathset -q)"
+export MANPATH="$(pathset -f man -q)"
+export INFOPATH="$(pathset -f info -q)"
 
 # zsh — fpath is an array, so -s emits it as one
-fpath=( $(pathset -f fpath -q -d -s) $fpath )
+fpath=( $(pathset -f fpath -q -s) $fpath )
 ```
 
 ```fish
-set -gx PATH (pathset -q -d | string split :)
+set -gx PATH (pathset -q | string split :)
 ```
 
 ### Config file
@@ -130,7 +131,7 @@ pathset: skipping conditional '/usr/share/zsh/$ZSH_VERSION/functions': $ZSH_VERS
 Export it for the one call rather than into every child process:
 
 ```sh
-fpath=( $(ZSH_VERSION="$ZSH_VERSION" pathset -f fpath -q -d -s) $fpath )
+fpath=( $(ZSH_VERSION="$ZSH_VERSION" pathset -f fpath -q -s) $fpath )
 ```
 
 ### Config lookup
@@ -158,7 +159,7 @@ Starter configs are in [`examples/`](examples/): copy `path.example` to
 | `3` | One or more entries were skipped — a failed expansion, or a character the separator cannot represent (`:` by default, whitespace under `-s`). Output is still printed; the code lets a script catch a config that has rotted. |
 
 A failed directory check is a warning, not a skip. `?conditional` drops and
-`-d` duplicate drops do not produce exit `3` either.
+duplicate drops do not produce exit `3` either.
 
 An empty result is refused, not printed as an empty line:
 `export PATH="$(pathset)"` with nothing to print leaves a shell that cannot
@@ -168,7 +169,7 @@ empty result is genuinely what you want; the exit code is unchanged by it.
 
 ### Catching a rotted config
 
-`export PATH="$(pathset -q -d)"` hides more than it looks like it does. `-q`
+`export PATH="$(pathset -q)"` hides more than it looks like it does. `-q`
 drops the per-entry warnings, and the shell reports *`export`'s* exit status,
 not `pathset`'s — so exit `3` never reaches you. To keep one signal, `-q`
 still prints a summary:
@@ -236,9 +237,9 @@ echo "$PATH" | tr ':' '\n' > ~/.config/pathset/path
 ```
 
 Group entries with `#` comments, replace hardcoded home directories with `~`,
-mark machine-specific ones `?`, and run `pathset -d -v` to see what survives
+mark machine-specific ones `?`, and run `pathset -v` to see what survives
 and what gets dropped. Then replace the `PATH=...` line in your rc with
-`export PATH="$(pathset -q -d)"`.
+`export PATH="$(pathset -q)"`.
 
 Tools that append to `PATH` themselves (rbenv, asdf, Homebrew shellenv) keep
 working — they prepend or append to the managed value.

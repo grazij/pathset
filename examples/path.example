@@ -6,8 +6,8 @@
 #   $XDG_CONFIG_HOME/pathset/path (if XDG_CONFIG_HOME is set explicitly)
 #
 # Then add to your shell rc:
-#   zsh/bash:  export PATH="$(pathset -q -d)"
-#   fish:      set -gx PATH (pathset -q -d | string split :)
+#   zsh/bash:  export PATH="$(pathset -q)"
+#   fish:      set -gx PATH (pathset -q | string split :)
 #
 # Syntax (see `pathset -h` for the full list):
 #   - one directory per line, in priority order (first wins)
@@ -29,7 +29,7 @@
 #   ${VAR}/foo   ->  braced form
 #
 # Run `pathset -f examples/path.example -v` to see what gets kept,
-# expanded, and skipped. Run with `-d` to dedup.
+# expanded, and skipped.
 
 # --- User-specific binaries -----------------------------------------------
 ~/bin

@@ -4,18 +4,20 @@
 pathset \- manage your shell PATH from a config file
 .SH SYNOPSIS
 .B pathset
-[\fI\,-f NAME|FILE\/\fR] [\fI\,-d\/\fR] [\fI\,-q\/\fR] [\fI\,-v\/\fR] [\fI\,-s\/\fR] [\fI\,--check\/\fR] [\fI\,--allow-empty\/\fR]
+[\fI\,-f NAME|FILE\/\fR] [\fI\,-q\/\fR] [\fI\,-v\/\fR] [\fI\,-s\/\fR] [\fI\,--check\/\fR] [\fI\,--allow-empty\/\fR]
 .br
 .B pathset
 [\fI\,-V|--version\/\fR] [\fI\,-h|--help\/\fR]
 .SH DESCRIPTION
 Reads a list of directories from a config file and prints them to stdout
-joined by ':', or by a space under \fB\-s\fR. Compose with $(...):
+joined by ':', or by a space under \fB\-s\fR. Duplicate entries are dropped,
+first occurrence wins; a trailing slash does not make an entry distinct.
+Compose with $(...):
 .IP
-export PATH="$(pathset \fB\-q\fR \fB\-d\fR)"
-export MANPATH="$(pathset \fB\-f\fR man \fB\-q\fR \fB\-d\fR)"
-export INFOPATH="$(pathset \fB\-f\fR info \fB\-q\fR \fB\-d\fR)"
-fpath=( $(pathset \fB\-f\fR fpath \fB\-q\fR \fB\-d\fR \fB\-s\fR) )   # zsh array
+export PATH="$(pathset \fB\-q\fR)"
+export MANPATH="$(pathset \fB\-f\fR man \fB\-q\fR)"
+export INFOPATH="$(pathset \fB\-f\fR info \fB\-q\fR)"
+fpath=( $(pathset \fB\-f\fR fpath \fB\-q\fR \fB\-s\fR) )   # zsh array
 .SH OPTIONS
 .TP
 \fB\-f\fR, \fB\-\-file\fR NAME
@@ -23,10 +25,6 @@ read the config named NAME, looked up as shown below
 (default: path). An argument containing '/' is read
 as a path to a file instead, with no fallback if it
 is missing.
-.TP
-\fB\-d\fR
-drop duplicate entries (first occurrence wins; a
-trailing slash does not make an entry distinct)
 .TP
 \fB\-q\fR
 suppress the per\-entry warnings. A one\-line summary
@@ -93,10 +91,10 @@ Not supported: mid\-string '~', ${VAR:\-default}, '\e$' escapes.
 .SS "Shell setup (add to your shell rc):"
 .TP
 zsh / bash:
-export PATH="$(pathset \fB\-q\fR \fB\-d\fR)"
+export PATH="$(pathset \fB\-q\fR)"
 .TP
 fish:
-set \fB\-gx\fR PATH (pathset \fB\-q\fR \fB\-d\fR | string split :)
+set \fB\-gx\fR PATH (pathset \fB\-q\fR | string split :)
 .SS "Exit codes:"
 .TP
 0
@@ -113,4 +111,4 @@ bad command\-line argument
 3
 one or more entries were skipped: an expansion failure, or a
 character the separator cannot represent. '?conditional' drops
-and dedup drops do NOT contribute
+and duplicate drops do NOT contribute
