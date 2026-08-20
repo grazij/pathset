@@ -106,14 +106,23 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/src" -w /src alpine:3.20 sh -euc '
             apk add --no-cache build-base bash clang
+            # Tests 43, 77 and 78 chmod a directory 000/0111 and assert that
+            # opendir fails. Root bypasses those bits, so the suite must not
+            # run as root -- the container does by default, unlike every
+            # other leg. Build in a scratch copy the unprivileged user owns:
+            # /src is a bind mount, and chowning it would rewrite the
+            # checkout owned by the runner.
+            adduser -D -u 1001 builder
+            cp -a /src /build && chown -R builder /build
             for cc in gcc clang; do
               echo "==> $cc"
               "$cc" --version | head -1
-              make clean
-              make lint CC="$cc"
-              make build CC="$cc"
-              make test CC="$cc"
-              make clean
-              make build CC="$cc" CFLAGS="-Wall -Wextra -Wpedantic -Werror"
+              su builder -s /bin/sh -c "cd /build \
+                && make clean \
+                && make lint CC=$cc \
+                && make build CC=$cc \
+                && make test CC=$cc \
+                && make clean \
+                && make build CC=$cc CFLAGS=\"-Wall -Wextra -Wpedantic -Werror\""
             done
           '
