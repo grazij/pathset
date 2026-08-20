@@ -248,18 +248,37 @@ static int dir_has_entries(const char *dir) {
 	return found;
 }
 
-static void read_paths(const char *path, Vec *out) {
+static void read_paths(const char *path, Vec *out, int quiet, int *skipped) {
 	FILE *f = fopen(path, "r");
 	if (!f) die(1, "cannot open '%s': %s", path, strerror(errno));
 
 	char *line = NULL;
 	size_t cap = 0;
 	ssize_t got;
+	unsigned long lineno = 0;
 	while ((got = getline(&line, &cap, f)) != -1) {
 		char *s = line;
 		size_t n = (size_t)got;
+		lineno++;
 		trim(&s, &n);
 		if (n == 0 || s[0] == '#') continue;
+
+		/* getline returns a byte count, but every stage after this one is
+		 * strlen-bounded, so a NUL inside the line would be silently obeyed
+		 * as a terminator. A leading one makes the entry "", which is an
+		 * empty element and therefore the working directory once it reaches
+		 * PATH; one mid-entry emits a prefix of the path that was declared,
+		 * at that path's priority. Neither is a directory anyone asked for.
+		 * Checked before the `?` strip: a NUL means the file is corrupt, not
+		 * that a conditional entry is absent, so it is loud even under `?`. */
+		if (memchr(s, '\0', n)) {
+			if (!quiet) {
+				fprintf(stderr, "%s: skipping line %lu of '%s': contains a NUL byte\n",
+					PROG, lineno, path);
+			}
+			(*skipped)++;
+			continue;
+		}
 
 		/* Leading `?` marks the entry as conditional. Strip it; whitespace
 		 * between `?` and the path is allowed. */
@@ -742,7 +761,7 @@ int main(int argc, char **argv) {
 	Vec v = {0};
 	int skipped = 0;
 	int warned = 0;
-	read_paths(cfg, &v);
+	read_paths(cfg, &v, quiet, &skipped);
 	expand_paths(&v, quiet, verbose, &skipped, words);
 	filter_paths(&v, quiet, verbose, &warned);
 	dedup_paths(&v, verbose);

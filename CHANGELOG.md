@@ -35,6 +35,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   cannot report this, so the check is explicit. `--check` writes nothing to
   stdout and is unaffected.
 
+- A config line containing a NUL byte is now skipped instead of being
+  silently obeyed. `getline` reports a byte count but every later stage is
+  `strlen`-bounded, so a NUL acted as a terminator nobody wrote. A line
+  starting with one produced an empty entry, and an empty element in `PATH`
+  is — per POSIX — the **current working directory**, inserted at that line's
+  priority with exit `0`; a NUL mid-line emitted a prefix of the declared
+  path, so `/opt/tool<NUL>chain/bin` became `/opt/tool`. Both now warn and
+  count as skips (exit `3`), the same class as any other entry that cannot be
+  turned into a path. The check runs before the `?` strip: a NUL means the
+  file is corrupt, not that a conditional entry is absent.
+
 - `--file NAME` no longer rejects the option that follows it. In the
   separate-argument spelling, `pathset --file cfg --check` exited `2` with
   `unknown argument: --check` — an option the user had spelled correctly.

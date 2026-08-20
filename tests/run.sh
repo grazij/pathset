@@ -1373,6 +1373,29 @@ else
 	bad "stdout write error" "path rc=$rc103 -V rc=$rc103v --check rc=$rc103c: $(cat "$WORK/err103")"
 fi
 
+# --- Test 104: a line containing a NUL is skipped, not obeyed ---
+# Everything after read_paths is strlen-bounded, so a leading NUL used to
+# yield "" -- an empty PATH element, which POSIX reads as the working
+# directory -- and a mid-line NUL emitted a prefix of the declared path.
+t 104 'a line containing a NUL is skipped, not obeyed'
+cfg104="$WORK/cfg104"
+printf '%s\n\0\n%s\n' "$A" "$B" >"$cfg104"
+got104="$("$BIN" -f "$cfg104" 2>"$WORK/err104")"
+rc104=$?
+cfg104b="$WORK/cfg104b"
+printf '%s\n%s\0chain/bin\n' "$A" "$A" >"$cfg104b"
+got104b="$("$BIN" -f "$cfg104b" -q 2>"$WORK/err104b")"
+rc104b=$?
+if [[ "$got104" == "$A:$B" && $rc104 -eq 3 ]] \
+	&& [[ "$got104" != *"::"* ]] \
+	&& grep -q 'contains a NUL byte' "$WORK/err104" \
+	&& [[ "$got104b" == "$A" && $rc104b -eq 3 ]] \
+	&& grep -q '1 entry skipped' "$WORK/err104b"; then
+	ok "a NUL byte is an expansion-class skip; no empty element reaches the output"
+else
+	bad "NUL in config" "rc=$rc104 got: $got104 / trunc rc=$rc104b got: $got104b"
+fi
+
 # --- Test 100: an argument error is a hint, not the whole help ---
 t 100 'an argument error is a hint, not the whole help'
 "$BIN" -z >"$WORK/out100" 2>"$WORK/err100"
