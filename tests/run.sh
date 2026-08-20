@@ -86,7 +86,6 @@ A="$WORK/a"; B="$WORK/b"; C="$WORK/c"
 mkdir -p "$A" "$B" "$C"
 : >"$A/file"; : >"$B/file"; : >"$C/file"
 
-# --- Test 1: basic parse with comments and blanks ---
 t 1 'basic parse with comments and blanks'
 cfg1="$WORK/cfg1"
 cat >"$cfg1" <<EOF
@@ -106,7 +105,6 @@ else
 	bad "basic parsing" "expected: $expected1 / got: $got1"
 fi
 
-# --- Test 2: empty file is refused unless --allow-empty ---
 t 2 'empty file is refused unless --allow-empty'
 cfg2="$WORK/cfg2"
 : >"$cfg2"
@@ -118,7 +116,6 @@ else
 	bad "empty config" "rc=$rc2 got: $got2 err: $(cat "$WORK/err2")"
 fi
 
-# --- Test 3: missing file -> non-zero exit, stderr message ---
 t 3 'missing file -> non-zero exit, stderr message'
 if "$BIN" -f "$WORK/does-not-exist" >/dev/null 2>"$WORK/err"; then
 	bad "missing file should error"
@@ -130,7 +127,6 @@ else
 	fi
 fi
 
-# --- Test 4: -f with no argument -> exit 2 ---
 t 4 '-f with no argument -> exit 2'
 "$BIN" -f >/dev/null 2>"$WORK/err"
 rc=$?
@@ -140,7 +136,6 @@ else
 	bad "-f with no arg" "rc=$rc"
 fi
 
-# --- Test 5: XDG_CONFIG_HOME fallback (no -f) ---
 t 5 'XDG_CONFIG_HOME fallback (no -f)'
 xdg="$WORK/xdg"
 mkdir -p "$xdg/pathset"
@@ -152,7 +147,6 @@ else
 	bad "XDG fallback" "got: $got5"
 fi
 
-# --- Test 6: HOME fallback when XDG_CONFIG_HOME unset ---
 t 6 'HOME fallback when XDG_CONFIG_HOME unset'
 home="$WORK/home"
 mkdir -p "$home/.pathset"
@@ -164,7 +158,6 @@ else
 	bad "HOME fallback" "got: $got6"
 fi
 
-# --- Test 7: XDG takes precedence over HOME ---
 t 7 'XDG takes precedence over HOME'
 got7="$(env -i HOME="$home" XDG_CONFIG_HOME="$xdg" "$BIN" 2>/dev/null)"
 if [[ "$got7" == "$A" ]]; then
@@ -173,7 +166,6 @@ else
 	bad "XDG precedence" "got: $got7"
 fi
 
-# --- Test 8: CRLF tolerance ---
 t 8 'CRLF tolerance'
 cfg8="$WORK/cfg8"
 printf '%s\r\n%s\r\n' "$A" "$B" >"$cfg8"
@@ -184,7 +176,6 @@ else
 	bad "CRLF" "got: $got8"
 fi
 
-# --- Test 9: missing directory is emitted with a warning ---
 t 9 'missing directory is emitted with a warning'
 cfg9="$WORK/cfg9"
 missing="$WORK/no-such-dir"
@@ -202,7 +193,6 @@ else
 	bad "missing dir emit" "rc=$rc9 got: $got9 / err: $(cat "$WORK/err9")"
 fi
 
-# --- Test 10: empty directory is emitted with a warning ---
 t 10 'empty directory is emitted with a warning'
 empty="$WORK/empty"
 mkdir -p "$empty"
@@ -221,7 +211,6 @@ else
 	bad "empty dir emit" "rc=$rc10 got: $got10 / err: $(cat "$WORK/err10")"
 fi
 
-# --- Test 11: -q suppresses per-entry warnings but keeps a summary ---
 t 11 '-q suppresses per-entry warnings but keeps a summary'
 got11="$("$BIN" -f "$cfg9" -q 2>"$WORK/err11")"
 if [[ "$got11" == "$A:$missing:$B" ]] \
@@ -232,7 +221,6 @@ else
 	bad "-q suppress" "got: $got11 / err: $(cat "$WORK/err11")"
 fi
 
-# --- Test 12: file (not a directory) is emitted with a warning ---
 t 12 'file (not a directory) is emitted with a warning'
 filepath="$WORK/regular-file"
 : >"$filepath"
@@ -249,7 +237,6 @@ else
 	bad "non-dir emit" "got: $got12 / err: $(cat "$WORK/err12")"
 fi
 
-# --- Test 13: duplicate entries are dropped, first wins ---
 t 13 'duplicate entries are dropped, first wins'
 cfg13="$WORK/cfg13"
 cat >"$cfg13" <<EOF
@@ -266,7 +253,6 @@ else
 	bad "dedup" "got: $got13"
 fi
 
-# --- Test 14: -d is no longer an option ---
 t 14 '-d is no longer an option'
 "$BIN" -f "$cfg13" -d >/dev/null 2>"$WORK/err14"
 rc14=$?
@@ -276,7 +262,6 @@ else
 	bad "-d removed" "rc=$rc14 err: $(cat "$WORK/err14")"
 fi
 
-# --- Test 15: dedup combined with a ?conditional drop ---
 t 15 'dedup combined with a ?conditional drop'
 cfg15="$WORK/cfg15"
 cat >"$cfg15" <<EOF
@@ -292,7 +277,6 @@ else
 	bad "dedup + filter" "got: $got15"
 fi
 
-# --- Test 16: -v prints kept entries on stderr ---
 t 16 '-v prints kept entries on stderr'
 cfg16="$WORK/cfg16"
 cat >"$cfg16" <<EOF
@@ -308,7 +292,6 @@ else
 	bad "-v keeps" "got: $got16 / err: $(cat "$WORK/err16")"
 fi
 
-# --- Test 17: -v is additive with the emitted-anyway warnings ---
 t 17 '-v is additive with the emitted-anyway warnings'
 cfg17="$WORK/cfg17"
 cat >"$cfg17" <<EOF
@@ -324,7 +307,6 @@ else
 	bad "-v additive" "err: $(cat "$WORK/err17")"
 fi
 
-# --- Test 18: -q overrides -v, leaving only the summary ---
 t 18 '-q overrides -v, leaving only the summary'
 "$BIN" -f "$cfg17" -v -q >/dev/null 2>"$WORK/err18"
 if ! grep -qE 'keeping|expanded|skipping|emitted anyway' "$WORK/err18" \
@@ -334,7 +316,6 @@ else
 	bad "-q overrides -v" "err: $(cat "$WORK/err18")"
 fi
 
-# --- Test 19: -v reports dropped duplicates ---
 t 19 '-v reports dropped duplicates'
 cfg19="$WORK/cfg19"
 cat >"$cfg19" <<EOF
@@ -349,7 +330,6 @@ else
 	bad "-v + dedup" "got: $got19 / err: $(cat "$WORK/err19")"
 fi
 
-# --- Test 20: ~/sub expands using $HOME ---
 t 20 '~/sub expands using $HOME'
 fakehome="$WORK/home2"
 mkdir -p "$fakehome/bin"
@@ -363,7 +343,6 @@ else
 	bad "tilde expand" "got: $got20"
 fi
 
-# --- Test 21: \$VAR expansion ---
 t 21 '\$VAR expansion'
 cfg21="$WORK/cfg21"
 echo '$MY_TEST_DIR/sub' >"$cfg21"
@@ -377,7 +356,6 @@ else
 	bad "var expand" "got: $got21"
 fi
 
-# --- Test 22: \${VAR} braced expansion ---
 t 22 '\${VAR} braced expansion'
 cfg22="$WORK/cfg22"
 echo '${MY_TEST_DIR}/sub' >"$cfg22"
@@ -388,7 +366,6 @@ else
 	bad "braced var expand" "got: $got22"
 fi
 
-# --- Test 23: unset var -> skip with warning ---
 t 23 'unset var -> skip with warning'
 cfg23="$WORK/cfg23"
 cat >"$cfg23" <<EOF
@@ -402,7 +379,6 @@ else
 	bad "unset var" "got: $got23 / err: $(cat "$WORK/err23")"
 fi
 
-# --- Test 24: unknown ~user -> skip with warning ---
 t 24 'unknown ~user -> skip with warning'
 cfg24="$WORK/cfg24"
 cat >"$cfg24" <<EOF
@@ -416,7 +392,6 @@ else
 	bad "unknown user" "got: $got24 / err: $(cat "$WORK/err24")"
 fi
 
-# --- Test 25: tilde mid-string is literal ---
 t 25 'tilde mid-string is literal'
 cfg25="$WORK/cfg25"
 echo "$WORK/~mid/foo" >"$cfg25"
@@ -427,7 +402,6 @@ else
 	bad "mid-tilde literal" "err: $(cat "$WORK/err25")"
 fi
 
-# --- Test 26: -v reports expansion ---
 t 26 '-v reports expansion'
 cfg26="$WORK/cfg26"
 echo '~/bin' >"$cfg26"
@@ -438,7 +412,6 @@ else
 	bad "-v expansion" "err: $(cat "$WORK/err26")"
 fi
 
-# --- Test 27: HOME unset -> ~/x skipped with warning ---
 t 27 'HOME unset -> ~/x skipped with warning'
 cfg27="$WORK/cfg27"
 echo '~/bin' >"$cfg27"
@@ -449,7 +422,6 @@ else
 	bad "HOME unset" "err: $(cat "$WORK/err27")"
 fi
 
-# --- Test 28: full literal path with embedded $ that doesn't match a var pattern ---
 t 28 'full literal path with embedded $ that doesn'\''t match a var pattern'
 cfg28="$WORK/cfg28"
 literal="$WORK/with\$dollar"
@@ -466,7 +438,6 @@ else
 	bad "lone \$" "err: $(cat "$WORK/err28")"
 fi
 
-# --- Test 29: clean run exits 0 ---
 t 29 'clean run exits 0'
 cfg31="$WORK/cfg31"
 cat >"$cfg31" <<EOF
@@ -481,7 +452,6 @@ else
 	bad "exit 0 clean" "rc=$rc"
 fi
 
-# --- Test 30: a failed directory check emits and leaves the exit code at 0 ---
 t 30 'a failed directory check emits and leaves the exit code at 0'
 cfg32="$WORK/cfg32"
 cat >"$cfg32" <<EOF
@@ -496,7 +466,6 @@ else
 	bad "filter exit code" "rc=$rc got: $got32"
 fi
 
-# --- Test 31: skipped expansion (unset var) exits 3 ---
 t 31 'skipped expansion (unset var) exits 3'
 cfg33="$WORK/cfg33"
 cat >"$cfg33" <<EOF
@@ -512,7 +481,6 @@ else
 	bad "exit 3 expand" "rc=$rc"
 fi
 
-# --- Test 32: -q does not change exit code ---
 t 32 '-q does not change exit code'
 "$BIN" -f "$cfg33" -q >/dev/null 2>/dev/null
 rc=$?
@@ -522,7 +490,6 @@ else
 	bad "-q + exit" "rc=$rc"
 fi
 
-# --- Test 33: a deduped run with no skips exits 0 ---
 t 33 'a deduped run with no skips exits 0'
 cfg35="$WORK/cfg35"
 cat >"$cfg35" <<EOF
@@ -538,7 +505,6 @@ else
 	bad "dedup exit" "rc=$rc"
 fi
 
-# --- Test 34: bundled flags (-qv) ---
 t 34 'bundled flags (-qv)'
 cfg36="$WORK/cfg36"
 cat >"$cfg36" <<EOF
@@ -553,7 +519,6 @@ else
 	bad "bundled flags" "got: $got36 / err: $(cat "$WORK/err36")"
 fi
 
-# --- Test 35: unknown flag exits 2 ---
 t 35 'unknown flag exits 2'
 "$BIN" -Z >/dev/null 2>"$WORK/err37"
 rc=$?
@@ -563,7 +528,6 @@ else
 	bad "unknown flag" "rc=$rc / err: $(cat "$WORK/err37")"
 fi
 
-# --- Test 36: positional argument is rejected ---
 t 36 'positional argument is rejected'
 "$BIN" extra-arg >/dev/null 2>"$WORK/err36pos"
 rc=$?
@@ -573,7 +537,6 @@ else
 	bad "positional arg" "rc=$rc / err: $(cat "$WORK/err36pos")"
 fi
 
-# --- Test 37: -V prints version and exits 0 ---
 t 37 '-V prints version and exits 0'
 got39="$("$BIN" -V 2>/dev/null)"
 rc=$?
@@ -583,7 +546,6 @@ else
 	bad "-V" "rc=$rc / got: $got39"
 fi
 
-# --- Test 38: ?conditional missing dir -> silent drop, exit 0 ---
 t 38 '?conditional missing dir -> silent drop, exit 0'
 cfg38="$WORK/cfg38"
 cat >"$cfg38" <<EOF
@@ -598,7 +560,6 @@ else
 	bad "?conditional silent" "got: $got38 / rc=$rc / err: $(cat "$WORK/err38")"
 fi
 
-# --- Test 39: ?conditional + -v reports the drop ---
 t 39 '?conditional + -v reports the drop'
 "$BIN" -f "$cfg38" -v >/dev/null 2>"$WORK/err39"
 if grep -q "skipping conditional '$WORK/no-such-optional'" "$WORK/err39"; then
@@ -607,7 +568,6 @@ else
 	bad "?conditional verbose" "err: $(cat "$WORK/err39")"
 fi
 
-# --- Test 40: ?conditional with unset var also silent ---
 t 40 '?conditional with unset var also silent'
 cfg40="$WORK/cfg40"
 cat >"$cfg40" <<EOF
@@ -622,7 +582,6 @@ else
 	bad "?conditional unset var" "got: $got40 / rc=$rc / err: $(cat "$WORK/err40")"
 fi
 
-# --- Test 41: ?conditional that DOES pass the check behaves normally ---
 t 41 '?conditional that DOES pass the check behaves normally'
 cfg41="$WORK/cfg41"
 cat >"$cfg41" <<EOF
@@ -637,7 +596,6 @@ else
 	bad "?conditional resolves" "got: $got41 / rc=$rc"
 fi
 
-# --- Test 42: ?conditional with whitespace between ? and path ---
 t 42 '?conditional with whitespace between ? and path'
 cfg42="$WORK/cfg42"
 cat >"$cfg42" <<EOF
@@ -650,7 +608,6 @@ else
 	bad "?conditional whitespace" "got: $got42"
 fi
 
-# --- Test 43: permission-denied directory is emitted with a warning ---
 t 43 'permission-denied directory is emitted with a warning'
 noperm="$WORK/noperm"
 mkdir -p "$noperm"
@@ -675,7 +632,6 @@ fi
 # Restore perms so subsequent tests / rm -rf work.
 chmod 755 "$noperm"
 
-# --- Test 44: missing all forms -> error mentions canonical XDG-default path ---
 t 44 'missing all forms -> error mentions canonical XDG-default path'
 home44="$WORK/home44"
 mkdir -p "$home44"
@@ -687,7 +643,6 @@ else
 	bad "missing canonical err" "rc=$rc / err: $(cat "$WORK/err44")"
 fi
 
-# --- Test 45: $HOME/.config/pathset/path (XDG default) found ---
 t 45 '$HOME/.config/pathset/path (XDG default) found'
 home45="$WORK/home45"
 mkdir -p "$home45/.config/pathset"
@@ -699,7 +654,6 @@ else
 	bad "XDG default" "got: $got45"
 fi
 
-# --- Test 46: XDG default precedes legacy ~/.pathset/path ---
 t 46 'XDG default precedes legacy ~/.pathset/path'
 home46="$WORK/home46"
 mkdir -p "$home46/.config/pathset" "$home46/.pathset"
@@ -712,7 +666,6 @@ else
 	bad "XDG precedence over legacy" "got: $got46"
 fi
 
-# --- Test 47: -f man reads ~/.config/pathset/man ---
 t 47 '-f man reads ~/.config/pathset/man'
 home_man="$WORK/home_man"
 mkdir -p "$home_man/.config/pathset"
@@ -724,7 +677,6 @@ else
 	bad "-f man" "got: $got_man"
 fi
 
-# --- Test 48: -f info reads ~/.config/pathset/info ---
 t 48 '-f info reads ~/.config/pathset/info'
 home_info="$WORK/home_info"
 mkdir -p "$home_info/.config/pathset"
@@ -736,7 +688,6 @@ else
 	bad "-f info" "got: $got_info"
 fi
 
-# --- Test 49: -f fpath reads ~/.config/pathset/fpath ---
 t 49 '-f fpath reads ~/.config/pathset/fpath'
 home_fp="$WORK/home_fp"
 mkdir -p "$home_fp/.config/pathset"
@@ -748,7 +699,6 @@ else
 	bad "-f fpath" "got: $got_fp"
 fi
 
-# --- Test 50: -f path is equivalent to no -f ---
 t 50 '-f path is equivalent to no -f'
 home_p="$WORK/home_p"
 mkdir -p "$home_p/.config/pathset"
@@ -761,7 +711,6 @@ else
 	bad "-f path default" "default: $got_default / -f path: $got_fpath"
 fi
 
-# --- Test 51: a bare -f argument names any config under pathset/ ---
 t 51 'a bare -f argument names any config under pathset/'
 home_any="$WORK/home_any"
 mkdir -p "$home_any/.config/pathset"
@@ -776,7 +725,6 @@ else
 	bad "-f arbitrary name" "got: $got_any / bogus rc=$rc_fbogus $(cat "$WORK/err_fbogus")"
 fi
 
-# --- Test 52: --file with no argument is named by its long spelling ---
 t 52 '--file with no argument is named by its long spelling'
 "$BIN" --file >/dev/null 2>"$WORK/err_fnoarg"
 rc=$?
@@ -786,7 +734,6 @@ else
 	bad "--file no arg" "rc=$rc / err: $(cat "$WORK/err_fnoarg")"
 fi
 
-# --- Test 53: an -f file argument bypasses the named-config lookup ---
 t 53 'an -f file argument bypasses the named-config lookup'
 home_byp="$WORK/home_byp"
 mkdir -p "$home_byp/.config/pathset"
@@ -800,7 +747,6 @@ else
 	bad "-f FILE bypass" "got: $got_byp"
 fi
 
-# --- Test 54: legacy ~/.pathset/<name> fallback works for a non-default config ---
 t 54 'legacy ~/.pathset/<name> fallback works for a non-default config'
 home_legacy_man="$WORK/home_legacy_man"
 mkdir -p "$home_legacy_man/.pathset"
@@ -812,7 +758,6 @@ else
 	bad "legacy man" "got: $got_legacy_man"
 fi
 
-# --- Test 55: set-but-empty $VAR is skipped, not expanded to nothing ---
 t 55 'set-but-empty $VAR is skipped, not expanded to nothing'
 cfg_ev="$WORK/cfg_ev"
 printf '%s\n$MTVAR/usr/bin\n' "$A" >"$cfg_ev"
@@ -824,7 +769,6 @@ else
 	bad "empty \$VAR" "rc=$rc_ev got: $got_ev stderr: $(cat "$WORK/err_ev")"
 fi
 
-# --- Test 56: ?conditional with set-but-empty $VAR is silent (exit 0) ---
 t 56 '?conditional with set-but-empty $VAR is silent (exit 0)'
 cfg_oev="$WORK/cfg_oev"
 printf '%s\n?$MTVAR/usr/bin\n' "$A" >"$cfg_oev"
@@ -836,7 +780,6 @@ else
 	bad "?conditional empty \$VAR" "rc=$rc_oev stderr: $(cat "$WORK/err_oev")"
 fi
 
-# --- Test 57: --help is accepted and exits 0 ---
 t 57 '--help is accepted and exits 0'
 if out_lh="$("$BIN" --help 2>"$WORK/err_lh")" && [[ "$out_lh" == Usage:* ]]; then
 	ok "--help prints usage on stdout and exits 0"
@@ -844,7 +787,6 @@ else
 	bad "--help" "rc=$? stderr: $(cat "$WORK/err_lh")"
 fi
 
-# --- Test 58: --version is accepted and exits 0 ---
 t 58 '--version is accepted and exits 0'
 if out_lv="$("$BIN" --version 2>/dev/null)" && [[ "$out_lv" =~ ^pathset\ [0-9]+\.[0-9]+ ]]; then
 	ok "--version prints version and exits 0"
@@ -852,7 +794,6 @@ else
 	bad "--version" "got: ${out_lv:-}"
 fi
 
-# --- Test 59: unknown long option exits 2 and names itself ---
 t 59 'unknown long option exits 2 and names itself'
 "$BIN" --bogus >/dev/null 2>"$WORK/err_lb"
 rc_lb=$?
@@ -862,7 +803,6 @@ else
 	bad "--bogus" "rc=$rc_lb stderr: $(cat "$WORK/err_lb")"
 fi
 
-# --- Test 60: dedup treats a trailing slash as the same directory ---
 t 60 'dedup treats a trailing slash as the same directory'
 cfg_ts="$WORK/cfg_ts"
 printf '%s\n%s/\n' "$A" "$A" >"$cfg_ts"
@@ -873,7 +813,6 @@ else
 	bad "dedup trailing slash" "got: $got_ts"
 fi
 
-# --- Test 61: the surviving entry keeps the form it was declared in ---
 t 61 'the surviving entry keeps the form it was declared in'
 cfg_ts2="$WORK/cfg_ts2"
 printf '%s/\n%s\n' "$A" "$A" >"$cfg_ts2"
@@ -884,7 +823,6 @@ else
 	bad "dedup trailing slash form" "got: $got_ts2"
 fi
 
-# --- Test 62: dedup runs after expansion, so ~ and $HOME collapse ---
 t 62 'dedup runs after expansion, so ~ and $HOME collapse'
 homedd="$WORK/home-dedup"
 mkdir -p "$homedd/bin"
@@ -898,7 +836,6 @@ else
 	bad "dedup after expansion" "got: $got_ts3"
 fi
 
-# --- Test 63: dedup does not merge distinct dirs sharing a prefix ---
 t 63 'dedup does not merge distinct dirs sharing a prefix'
 mkdir -p "${A}x" && : >"${A}x/file"
 cfg_ts4="$WORK/cfg_ts4"
@@ -910,7 +847,6 @@ else
 	bad "dedup prefix collision" "got: $got_ts4"
 fi
 
-# --- Test 64: -q on a clean config stays completely silent ---
 t 64 '-q on a clean config stays completely silent'
 "$BIN" -f "$cfg1" -q >/dev/null 2>"$WORK/err_qc"
 if [[ ! -s "$WORK/err_qc" ]]; then
@@ -919,7 +855,6 @@ else
 	bad "-q clean" "err: $(cat "$WORK/err_qc")"
 fi
 
-# --- Test 65: without -q the summary is not added on top of the warnings ---
 t 65 'without -q the summary is not added on top of the warnings'
 "$BIN" -f "$cfg9" >/dev/null 2>"$WORK/err_nq"
 if grep -q 'emitted anyway' "$WORK/err_nq" && ! grep -q 'omit -q to see which' "$WORK/err_nq"; then
@@ -928,7 +863,6 @@ else
 	bad "no -q summary" "err: $(cat "$WORK/err_nq")"
 fi
 
-# --- Test 66: summary is pluralised on more than one skip ---
 t 66 'summary is pluralised on more than one skip'
 cfg_pl="$WORK/cfg_pl"
 unset PATHSET_PL_1 PATHSET_PL_2
@@ -940,7 +874,6 @@ else
 	bad "summary plural" "err: $(cat "$WORK/err_pl")"
 fi
 
-# --- Test 67: every entry skipped -> exit 3, nothing on stdout ---
 t 67 'every entry skipped -> exit 3, nothing on stdout'
 cfg_ae="$WORK/cfg_ae"
 unset PATHSET_AE_1 PATHSET_AE_2
@@ -953,7 +886,6 @@ else
 	bad "all skipped" "rc=$rc_ae got: $got_ae err: $(cat "$WORK/err_ae")"
 fi
 
-# --- Test 68: --allow-empty permits it, exit 3 still reports the skips ---
 t 68 '--allow-empty permits it, exit 3 still reports the skips'
 got_ae2="$("$BIN" -f "$cfg_ae" -q --allow-empty 2>/dev/null)"
 rc_ae2=$?
@@ -963,7 +895,6 @@ else
 	bad "--allow-empty" "rc=$rc_ae2 got: $got_ae2"
 fi
 
-# --- Test 69: --allow-empty on a genuinely empty config exits 0 ---
 t 69 '--allow-empty on a genuinely empty config exits 0'
 "$BIN" -f "$cfg2" --allow-empty >/dev/null 2>"$WORK/err_ae3"
 rc_ae3=$?
@@ -973,7 +904,6 @@ else
 	bad "--allow-empty empty cfg" "rc=$rc_ae3 err: $(cat "$WORK/err_ae3")"
 fi
 
-# --- Test 70: --check validates without printing to stdout ---
 t 70 '--check validates without printing to stdout'
 got_ck="$("$BIN" -f "$cfg1" --check 2>/dev/null)"
 rc_ck=$?
@@ -983,7 +913,6 @@ else
 	bad "--check clean" "rc=$rc_ck got: $got_ck"
 fi
 
-# --- Test 71: --check reports a rotted config with exit 3, still no stdout ---
 t 71 '--check reports a rotted config with exit 3, still no stdout'
 cfg_rot="$WORK/cfg_rot"
 unset PATHSET_ROT_UNSET
@@ -996,7 +925,6 @@ else
 	bad "--check rotted" "rc=$rc_ck2 got: $got_ck2"
 fi
 
-# --- Test 72: --check on a missing config is still fatal ---
 t 72 '--check on a missing config is still fatal'
 "$BIN" -f "$WORK/does-not-exist" --check >/dev/null 2>/dev/null
 rc_ck3=$?
@@ -1006,7 +934,6 @@ else
 	bad "--check missing" "rc=$rc_ck3"
 fi
 
-# --- Test 73: an entry containing ':' is unrepresentable and is skipped ---
 t 73 'an entry containing '\'':'\'' is unrepresentable and is skipped'
 mkdir -p "$WORK/co:lon" && : >"$WORK/co:lon/file"
 cfg_co="$WORK/cfg_co"
@@ -1019,7 +946,6 @@ else
 	bad "colon entry" "rc=$rc_co got: $got_co err: $(cat "$WORK/err_co")"
 fi
 
-# --- Test 74: ?conditional colon entry is silently skipped (exit 0) ---
 t 74 '?conditional colon entry is silently skipped (exit 0)'
 cfg_co2="$WORK/cfg_co2"
 printf '%s\n?%s/co:lon\n' "$A" "$WORK" >"$cfg_co2"
@@ -1031,7 +957,6 @@ else
 	bad "conditional colon entry" "rc=$rc_co2 got: $got_co2 err: $(cat "$WORK/err_co2")"
 fi
 
-# --- Test 75: a colon arriving via expansion is caught too ---
 t 75 'a colon arriving via expansion is caught too'
 cfg_co3="$WORK/cfg_co3"
 printf '%s\n$COLONVAR\n' "$A" >"$cfg_co3"
@@ -1043,7 +968,6 @@ else
 	bad "expanded colon" "rc=$rc_co3 got: $got_co3"
 fi
 
-# --- Test 76: ?conditional on an empty directory is dropped silently ---
 t 76 '?conditional on an empty directory is dropped silently'
 cfg76="$WORK/cfg76"
 printf '%s\n?%s\n' "$A" "$empty" >"$cfg76"
@@ -1055,7 +979,6 @@ else
 	bad "?conditional empty dir" "rc=$rc76 got: $got76 err: $(cat "$WORK/err76")"
 fi
 
-# --- Test 77: execute-but-not-read directory is emitted with a warning ---
 t 77 'execute-but-not-read directory is emitted with a warning'
 xonly="$WORK/xonly"
 mkdir -p "$xonly"
@@ -1074,7 +997,6 @@ else
 	bad "exec-only dir" "rc=$rc77 got: $got77 err: $(cat "$WORK/err77")"
 fi
 
-# --- Test 78: ?conditional on an execute-only directory is dropped ---
 t 78 '?conditional on an execute-only directory is dropped'
 cfg78="$WORK/cfg78"
 printf '%s\n?%s\n' "$A" "$xonly" >"$cfg78"
@@ -1087,7 +1009,6 @@ else
 fi
 chmod 755 "$xonly"
 
-# --- Test 79: summary pluralises entries emitted with warnings ---
 t 79 'summary pluralises entries emitted with warnings'
 cfg79="$WORK/cfg79"
 printf '%s\n%s/nope1\n%s/nope2\n' "$A" "$WORK" "$WORK" >"$cfg79"
@@ -1098,7 +1019,6 @@ else
 	bad "warning summary plural" "err: $(cat "$WORK/err79")"
 fi
 
-# --- Test 80: the -q summary reports warnings and skips together ---
 t 80 'the -q summary reports warnings and skips together'
 cfg80="$WORK/cfg80"
 unset PATHSET_SUM_UNSET
@@ -1112,7 +1032,6 @@ else
 	bad "combined summary" "rc=$rc80 err: $(cat "$WORK/err80")"
 fi
 
-# --- Test 81: an empty result that no skip explains stays exit 1 ---
 t 81 'an empty result that no skip explains stays exit 1'
 cfg81="$WORK/cfg81"
 printf '# just a comment\n\n' >"$cfg81"
@@ -1124,7 +1043,6 @@ else
 	bad "comment-only cfg" "rc=$rc81 got: $got81 err: $(cat "$WORK/err81")"
 fi
 
-# --- Test 82: --check does not suppress the empty guard ---
 t 82 '--check does not suppress the empty guard'
 "$BIN" -f "$cfg_ae" --check >/dev/null 2>"$WORK/err82"
 rc82=$?
@@ -1134,7 +1052,6 @@ else
 	bad "--check empty guard" "rc=$rc82 err: $(cat "$WORK/err82")"
 fi
 
-# --- Test 83: an abbreviated long option is rejected ---
 t 83 'an abbreviated long option is rejected'
 "$BIN" --che -f "$cfg1" >/dev/null 2>"$WORK/err_abbr"
 rc_abbr=$?
@@ -1144,7 +1061,6 @@ else
 	bad "--che" "rc=$rc_abbr err: $(cat "$WORK/err_abbr")"
 fi
 
-# --- Test 84: a long option given an argument it does not take is rejected ---
 t 84 'a long option given an argument it does not take is rejected'
 "$BIN" --check=1 -f "$cfg1" >/dev/null 2>"$WORK/err_leq"
 rc_leq=$?
@@ -1154,7 +1070,6 @@ else
 	bad "--check=1" "rc=$rc_leq err: $(cat "$WORK/err_leq")"
 fi
 
-# --- Test 85: '--' ends option scanning ---
 t 85 "'--' ends option scanning"
 "$BIN" -f "$cfg1" -- --check >/dev/null 2>"$WORK/err_dd"
 rc_dd=$?
@@ -1164,7 +1079,6 @@ else
 	bad "-- ends options" "rc=$rc_dd err: $(cat "$WORK/err_dd")"
 fi
 
-# --- Test 86: argv is read left to right, so an earlier error wins ---
 t 86 'argv is read left to right, so an earlier error wins'
 "$BIN" -Z --help >/dev/null 2>"$WORK/err_ltr"
 rc_ltr=$?
@@ -1174,7 +1088,6 @@ else
 	bad "-Z --help" "rc=$rc_ltr err: $(cat "$WORK/err_ltr")"
 fi
 
-# --- Test 87: ... and --help wins over what follows it ---
 t 87 '... and --help wins over what follows it'
 out_ltr2="$("$BIN" --help --bogus 2>"$WORK/err_ltr2")"
 rc_ltr2=$?
@@ -1184,7 +1097,6 @@ else
 	bad "--help --bogus" "rc=$rc_ltr2 err: $(cat "$WORK/err_ltr2")"
 fi
 
-# --- Test 88: -f with a bare name selects that config ---
 t 88 '-f with a bare name selects that config'
 mkdir -p "$xdg/pathset"
 echo "$B" >"$xdg/pathset/man"
@@ -1195,7 +1107,6 @@ else
 	bad "-f bare name" "got: $got88"
 fi
 
-# --- Test 89: an -f argument containing '/' is a file path ---
 t 89 "an -f argument containing '/' is a file path"
 cfg89="$WORK/cfg89"
 echo "$C" >"$cfg89"
@@ -1206,7 +1117,6 @@ else
 	bad "-f file path" "got: $got89"
 fi
 
-# --- Test 90: --file is the long form of -f ---
 t 90 '--file is the long form of -f'
 got91="$("$BIN" --file "$cfg89" 2>/dev/null)"
 if [[ "$got91" == "$C" ]]; then
@@ -1215,7 +1125,6 @@ else
 	bad "--file long form" "got: $got91"
 fi
 
-# --- Test 91: a repeated -f is last-wins across both branches ---
 t 91 'a repeated -f is last-wins across both branches'
 got92a="$(env -i HOME="$WORK/home" XDG_CONFIG_HOME="$xdg" "$BIN" -f "$cfg89" -f man 2>/dev/null)"
 got92b="$(env -i HOME="$WORK/home" XDG_CONFIG_HOME="$xdg" "$BIN" -f man -f "$cfg89" 2>/dev/null)"
@@ -1225,7 +1134,6 @@ else
 	bad "-f last wins" "file-then-name: $got92a  name-then-file: $got92b"
 fi
 
-# --- Test 92: -s joins with a space instead of ':' ---
 t 92 "-s joins with a space instead of ':'"
 cfg93="$WORK/cfg93"
 printf '%s\n%s\n' "$A" "$B" >"$cfg93"
@@ -1236,7 +1144,6 @@ else
 	bad "-s separator" "got: $got93"
 fi
 
-# --- Test 93: --space is the long form of -s ---
 t 93 '--space is the long form of -s'
 got94="$("$BIN" -f "$cfg93" --space 2>/dev/null)"
 if [[ "$got94" == "$A $B" ]]; then
@@ -1245,7 +1152,6 @@ else
 	bad "--space long form" "got: $got94"
 fi
 
-# --- Test 94: under -s an entry containing whitespace is unrepresentable ---
 t 94 'under -s an entry containing whitespace is unrepresentable'
 spacedir="$WORK/sp ace"
 mkdir -p "$spacedir"
@@ -1260,7 +1166,6 @@ else
 	bad "-s whitespace entry" "rc=$rc95 got: $got95 err: $(cat "$WORK/err95")"
 fi
 
-# --- Test 95: under -s an entry containing ':' is emitted ---
 t 95 "under -s an entry containing ':' is emitted"
 colondir="$WORK/co:lon"
 mkdir -p "$colondir"
@@ -1275,7 +1180,6 @@ else
 	bad "-s colon entry" "rc=$rc96 got: $got96"
 fi
 
-# --- Test 96: -s --check reports the drop with no stdout ---
 t 96 '-s --check reports the drop with no stdout'
 got97="$("$BIN" -f "$cfg95" -s --check 2>"$WORK/err97")"
 rc97=$?
@@ -1285,7 +1189,6 @@ else
 	bad "-s --check" "rc=$rc97 got: $got97 err: $(cat "$WORK/err97")"
 fi
 
-# --- Test 97: --file=NAME is accepted, unlike an abbreviation ---
 t 97 '--file=NAME is accepted, unlike an abbreviation'
 got97="$(env -i HOME="$WORK/home" XDG_CONFIG_HOME="$xdg" "$BIN" --file=man 2>"$WORK/err97b")"
 rc97b=$?
@@ -1298,7 +1201,6 @@ else
 	bad "--file=NAME" "rc=$rc97b got: $got97 / --fil rc=$rc97c $(cat "$WORK/err97c")"
 fi
 
-# --- Test 98: --space given an argument is echoed as written ---
 t 98 '--space given an argument is echoed as written'
 "$BIN" --space=x >/dev/null 2>"$WORK/err98"
 rc98=$?
@@ -1308,7 +1210,6 @@ else
 	bad "--space=x" "rc=$rc98 err: $(cat "$WORK/err98")"
 fi
 
-# --- Test 99: an empty -f argument is rejected ---
 t 99 'an empty -f argument is rejected'
 "$BIN" --file= >/dev/null 2>"$WORK/err99a"
 rc99a=$?
@@ -1322,7 +1223,6 @@ else
 	bad "-f empty" "--file= rc=$rc99a / -f '' rc=$rc99b: $(cat "$WORK/err99b")"
 fi
 
-# --- Test 101: --file NAME does not swallow the option that follows it ---
 # The separate-argument form leaves optind two past the token, so a naive
 # scan finds the *next* option and rejects a correctly spelled one.
 t 101 '--file NAME does not swallow the option that follows it'
@@ -1338,7 +1238,6 @@ else
 	bad "--file NAME + long option" "$fail101"
 fi
 
-# --- Test 102: an abbreviation is rejected in the two-token form too ---
 t 102 'an abbreviation is rejected in the two-token form too'
 fail102=""
 for abbr in --f --fi --fil; do
@@ -1353,7 +1252,6 @@ else
 	bad "abbreviation, two-token form" "$fail102"
 fi
 
-# --- Test 103: a failed stdout write is reported, not swallowed ---
 # stdout is the whole product, and $(...) reports the shell's status, not
 # ours -- so a short write has to be caught here or it is never caught.
 # A closed fd 1 is the portable way to force one; ENOSPC takes the same path.
@@ -1373,7 +1271,6 @@ else
 	bad "stdout write error" "path rc=$rc103 -V rc=$rc103v --check rc=$rc103c: $(cat "$WORK/err103")"
 fi
 
-# --- Test 104: a line containing a NUL is skipped, not obeyed ---
 # Everything after read_paths is strlen-bounded, so a leading NUL used to
 # yield "" -- an empty PATH element, which POSIX reads as the working
 # directory -- and a mid-line NUL emitted a prefix of the declared path.
@@ -1396,7 +1293,6 @@ else
 	bad "NUL in config" "rc=$rc104 got: $got104 / trunc rc=$rc104b got: $got104b"
 fi
 
-# --- Test 100: an argument error is a hint, not the whole help ---
 t 100 'an argument error is a hint, not the whole help'
 "$BIN" -z >"$WORK/out100" 2>"$WORK/err100"
 rc100=$?
