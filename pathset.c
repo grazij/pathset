@@ -27,19 +27,13 @@ static const char *PROG = "pathset";
 #define PATHSET_VERSION "unknown"
 #endif
 
-/* The kind selects which filename is read under `pathset/`. Output format is
- * identical for every kind; the caller composes it into PATH, MANPATH,
- * INFOPATH, or fpath. */
-static const char *KINDS[] = {"path", "man", "info", "fpath"};
-static const size_t NUM_KINDS = sizeof(KINDS) / sizeof(KINDS[0]);
-#define DEFAULT_KIND "path"
-
-static int is_valid_kind(const char *k) {
-	for (size_t i = 0; i < NUM_KINDS; i++) {
-		if (strcmp(KINDS[i], k) == 0) return 1;
-	}
-	return 0;
-}
+/* An -f argument that is not a path is a filename under `pathset/`, and any
+ * name works -- `path`, `man`, `info` and `fpath` are only the ones the docs
+ * demonstrate. There is no list to validate against, so a name that does not
+ * exist is the ordinary "cannot open" fatal, naming the path it tried. The
+ * output format is identical whichever config is read; the caller composes it
+ * into PATH, MANPATH, INFOPATH, or fpath. */
+#define DEFAULT_CONFIG "path"
 
 static void die(int code, const char *fmt, ...) {
 	va_list ap;
@@ -53,29 +47,35 @@ static void die(int code, const char *fmt, ...) {
 
 static void usage(FILE *out) {
 	fprintf(out,
-		"Usage: %s [-c CONFIG] [-k KIND] [-d] [-q] [-v] [--check] [--allow-empty]\n"
+		"Usage: %s [-f NAME|FILE] [-d] [-q] [-v] [-s] [--check] [--allow-empty]\n"
 		"   or: %s [-V|--version] [-h|--help]\n"
 		"\n"
-		"Reads a list of directories from a config file and prints a ':'-joined\n"
-		"string to stdout. Compose into any variable with $(...):\n"
+		"Reads a list of directories from a config file and prints them to stdout\n"
+		"joined by ':', or by a space under -s. Compose with $(...):\n"
 		"  export PATH=\"$(%s -q -d)\"\n"
-		"  export MANPATH=\"$(%s -k man -q -d)\"\n"
-		"  export INFOPATH=\"$(%s -k info -q -d)\"\n"
-		"  fpath=( ${(s.:.)$(%s -k fpath -q -d)} )   # zsh array\n"
+		"  export MANPATH=\"$(%s -f man -q -d)\"\n"
+		"  export INFOPATH=\"$(%s -f info -q -d)\"\n"
+		"  fpath=( $(%s -f fpath -q -d -s) )   # zsh array\n"
 		"\n"
 		"Options:\n"
-		"  -c CONFIG      read config from CONFIG (overrides default lookup)\n"
-		"  -k KIND        select kind: path (default), man, info, fpath\n"
-		"  -d             drop duplicate entries (first occurrence wins; a\n"
-		"                 trailing slash does not make an entry distinct)\n"
-		"  -q             suppress the per-entry warnings. A one-line summary\n"
-		"                 is still printed: $(...) discards the exit status, so\n"
-		"                 it would otherwise be the only signal, and silent.\n"
-		"  -v             print kept entries and expansions on stderr (-q wins)\n"
-		"  --check        validate only: print nothing on stdout, exit as below\n"
-		"  --allow-empty  print an empty result instead of failing on one\n"
-		"  -V, --version  print version and exit\n"
-		"  -h, --help     show this help and exit\n"
+		"  -f, --file NAME    read the config named NAME, looked up as shown below\n"
+		"                     (default: path). An argument containing '/' is read\n"
+		"                     as a path to a file instead, with no fallback if it\n"
+		"                     is missing.\n"
+		"  -d                 drop duplicate entries (first occurrence wins; a\n"
+		"                     trailing slash does not make an entry distinct)\n"
+		"  -q                 suppress the per-entry warnings. A one-line summary\n"
+		"                     is still printed: $(...) discards the exit status, so\n"
+		"                     it would otherwise be the only signal, and silent.\n"
+		"  -v                 print kept entries and expansions on stderr (-q wins)\n"
+		"  -s, --space        join with a space instead of ':', so the result reads\n"
+		"                     as a shell array. An entry containing whitespace is\n"
+		"                     then the unrepresentable one and is skipped, exactly\n"
+		"                     as a ':' entry is under the default separator.\n"
+		"  --check            validate only: print nothing on stdout, exit as below\n"
+		"  --allow-empty      print an empty result instead of failing on one\n"
+		"  -V, --version      print version and exit\n"
+		"  -h, --help         show this help and exit\n"
 		"\n"
 		"Config file syntax:\n"
 		"  - one directory per line, in priority order\n"
@@ -95,11 +95,11 @@ static void usage(FILE *out) {
 		"  ${VAR}/foo   braced form, useful next to a name char\n"
 		"  Not supported: mid-string '~', ${VAR:-default}, '\\$' escapes.\n"
 		"\n"
-		"Config lookup (first match wins; <kind> = path|man|info|fpath):\n"
-		"  1. -c CONFIG (no fallback if missing: fatal error)\n"
-		"  2. $XDG_CONFIG_HOME/pathset/<kind> (only if XDG_CONFIG_HOME is set)\n"
-		"  3. $HOME/.config/pathset/<kind>    (XDG default, canonical)\n"
-		"  4. $HOME/.pathset/<kind>           (legacy home location)\n"
+		"Config lookup (first match wins; <name> is the -f value, default 'path'):\n"
+		"  1. -f FILE, an argument containing '/' (no fallback: fatal error)\n"
+		"  2. $XDG_CONFIG_HOME/pathset/<name> (only if XDG_CONFIG_HOME is set)\n"
+		"  3. $HOME/.config/pathset/<name>    (XDG default, canonical)\n"
+		"  4. $HOME/.pathset/<name>           (legacy home location)\n"
 		"\n"
 		"Shell setup (add to your shell rc):\n"
 		"  zsh / bash:  export PATH=\"$(%s -q -d)\"\n"
@@ -112,8 +112,8 @@ static void usage(FILE *out) {
 		"     empty result that no skip explains)\n"
 		"  2  bad command-line argument\n"
 		"  3  one or more entries were skipped: an expansion failure, or a\n"
-		"     ':' that cannot be represented. '?conditional' drops and\n"
-		"     dedup drops do NOT contribute\n",
+		"     character the separator cannot represent. '?conditional' drops\n"
+		"     and dedup drops do NOT contribute\n",
 		PROG, PROG, PROG, PROG, PROG, PROG, PROG, PROG);
 }
 
@@ -125,9 +125,9 @@ static char *xstrdup(const char *s) {
 	return p;
 }
 
-/* Builds "<prefix>/<segment>/<kind>". */
-static char *join3(const char *prefix, const char *segment, const char *kind) {
-	size_t lp = strlen(prefix), ls = strlen(segment), lk = strlen(kind);
+/* Builds "<prefix>/<segment>/<name>". */
+static char *join3(const char *prefix, const char *segment, const char *name) {
+	size_t lp = strlen(prefix), ls = strlen(segment), lk = strlen(name);
 	/* +2 for two '/' separators, +1 for terminator */
 	char *p = malloc(lp + 1 + ls + 1 + lk + 1);
 	if (!p) die(1, "out of memory");
@@ -135,7 +135,7 @@ static char *join3(const char *prefix, const char *segment, const char *kind) {
 	p[lp] = '/';
 	memcpy(p + lp + 1, segment, ls);
 	p[lp + 1 + ls] = '/';
-	memcpy(p + lp + 1 + ls + 1, kind, lk + 1);
+	memcpy(p + lp + 1 + ls + 1, name, lk + 1);
 	return p;
 }
 
@@ -144,17 +144,17 @@ static char *join3(const char *prefix, const char *segment, const char *kind) {
  * home location exists, the canonical XDG path is returned anyway, so the
  * "cannot open" error names the location the README tells users to create.
  */
-static char *resolve_config_path(const char *override, const char *kind) {
+static char *resolve_config_path(const char *override, const char *name) {
 	if (override) return xstrdup(override);
 
 	const char *xdg = getenv("XDG_CONFIG_HOME");
-	if (xdg && *xdg) return join3(xdg, "pathset", kind);
+	if (xdg && *xdg) return join3(xdg, "pathset", name);
 
 	const char *home = getenv("HOME");
 	if (home && *home) {
-		char *xdg_default = join3(home, ".config/pathset", kind);
+		char *xdg_default = join3(home, ".config/pathset", name);
 		if (access(xdg_default, F_OK) == 0) return xdg_default;
-		char *legacy_dir = join3(home, ".pathset", kind);
+		char *legacy_dir = join3(home, ".pathset", name);
 		if (access(legacy_dir, F_OK) == 0) {
 			free(xdg_default);
 			return legacy_dir;
@@ -163,7 +163,7 @@ static char *resolve_config_path(const char *override, const char *kind) {
 		return xdg_default;
 	}
 
-	die(1, "no -c given and neither XDG_CONFIG_HOME nor HOME is set");
+	die(1, "no -f path given and neither XDG_CONFIG_HOME nor HOME is set");
 	return NULL;
 }
 
@@ -269,9 +269,9 @@ static void read_paths(const char *path, Vec *out) {
 	if (fclose(f) != 0) die(1, "close error on '%s': %s", path, strerror(errno));
 }
 
-static void print_path(const Vec *v) {
+static void print_path(const Vec *v, int words) {
 	for (size_t i = 0; i < v->n; i++) {
-		if (i) fputc(':', stdout);
+		if (i) fputc(words ? ' ' : ':', stdout);
 		fputs(v->items[i].path, stdout);
 	}
 	fputc('\n', stdout);
@@ -404,20 +404,38 @@ fail:
 	return NULL;
 }
 
-static void expand_paths(Vec *v, int quiet, int verbose, int *skipped) {
+/*
+ * The output format has no escape for its separator, so an entry containing
+ * one would silently split into two elements and invent a directory that was
+ * never declared. Which character is unrepresentable follows the separator:
+ * ':' by default, and any whitespace under -s, since that is what a shell
+ * splits a space-joined list on. Returns the reason phrase, or NULL when the
+ * entry can be represented.
+ */
+static const char *unrepresentable(const char *s, int words) {
+	if (words) {
+		return strpbrk(s, " \t\n")
+			? "contains whitespace, which cannot be represented in a space-joined list"
+			: NULL;
+	}
+	return strchr(s, ':')
+		? "contains ':', which cannot be represented in a ':'-joined list"
+		: NULL;
+}
+
+static void expand_paths(Vec *v, int quiet, int verbose, int *skipped, int words) {
 	size_t kept = 0;
 	for (size_t i = 0; i < v->n; i++) {
 		Entry e = v->items[i];
 		const char *err = NULL;
 		char *exp = expand_entry(e.path, &err);
-		/* The output format has no escape for ':', so an entry containing one
-		 * would silently split into two elements and invent a directory that
-		 * was never declared. Unrepresentable, so drop it like any other
-		 * failed entry. Checked after expansion: a ':' can arrive from $VAR. */
-		if (exp && strchr(exp, ':')) {
+		/* Dropped like any other failed entry. Checked after expansion,
+		 * because the separator can arrive through $VAR. */
+		const char *unrep = exp ? unrepresentable(exp, words) : NULL;
+		if (unrep) {
 			free(exp);
 			exp = NULL;
-			err = "contains ':', which cannot be represented in a ':'-joined list";
+			err = unrep;
 		}
 		if (!exp) {
 			if (e.conditional) {
@@ -545,20 +563,24 @@ static void filter_paths(Vec *v, int quiet, int verbose, int *warned) {
  * is scanned once, left to right, and a long option no longer wins over an
  * error that precedes it.
  *
- * Every long option carries a val of its own, outside the range of a char.
- * That is what keeps the error paths below unambiguous: optopt holds a
+ * Every long option carries a val of its own, outside the range of a char --
+ * including the two that also have a short spelling, which map onto it in the
+ * switch. That is what keeps the error paths below unambiguous: optopt holds a
  * short-option character only when a short option failed, because an
- * unrecognised long option leaves it 0 and a long option handed an argument
- * it does not take (`--check=x`) leaves it set to that option's own val.
+ * unrecognised long option leaves it 0, and a long option that is missing its
+ * argument or handed one it does not take leaves it set to that option's own
+ * val. Give `--space` the val 's' instead and `--space=x` would report `-s`.
  */
-enum { OPT_CHECK = 1000, OPT_ALLOW_EMPTY, OPT_VERSION, OPT_HELP };
+enum { OPT_CHECK = 1000, OPT_ALLOW_EMPTY, OPT_VERSION, OPT_HELP, OPT_FILE, OPT_SPACE };
 
 static const struct option LONG_OPTS[] = {
-	{"check",       no_argument, NULL, OPT_CHECK},
-	{"allow-empty", no_argument, NULL, OPT_ALLOW_EMPTY},
-	{"version",     no_argument, NULL, OPT_VERSION},
-	{"help",        no_argument, NULL, OPT_HELP},
-	{NULL,          0,           NULL, 0}
+	{"file",        required_argument, NULL, OPT_FILE},
+	{"space",       no_argument,       NULL, OPT_SPACE},
+	{"check",       no_argument,       NULL, OPT_CHECK},
+	{"allow-empty", no_argument,       NULL, OPT_ALLOW_EMPTY},
+	{"version",     no_argument,       NULL, OPT_VERSION},
+	{"help",        no_argument,       NULL, OPT_HELP},
+	{NULL,          0,                 NULL, 0}
 };
 
 /*
@@ -582,12 +604,16 @@ static const char *long_token(int argc, char **argv) {
  * `--che` would reach us as `--check`. pathset has never accepted one, and
  * silently widening the spellings it answers to would turn every future
  * rename into a breaking change. An inexact match is rejected with the same
- * message an unknown option gets. No `=` can appear in a matched token: all
- * four options take no argument, so `--check=x` fails inside getopt_long.
+ * message an unknown option gets. `--file` takes an argument, so the token can
+ * carry a `--file=NAME` suffix: only the part before `=` is the spelling, and
+ * comparing the whole token would reject the documented form.
  */
 static void reject_abbreviation(int argc, char **argv, const struct option *matched) {
 	const char *tok = long_token(argc, argv);
-	if (tok && strcmp(tok + 2, matched->name) != 0) {
+	if (!tok) return;
+	const char *given = tok + 2;
+	size_t n = strcspn(given, "=");
+	if (strlen(matched->name) != n || strncmp(given, matched->name, n) != 0) {
 		usage(stderr);
 		die(2, "unknown argument: %s", tok);
 	}
@@ -595,10 +621,11 @@ static void reject_abbreviation(int argc, char **argv, const struct option *matc
 
 int main(int argc, char **argv) {
 	const char *cfg_override = NULL;
-	const char *kind = DEFAULT_KIND;
+	const char *cfg_name = DEFAULT_CONFIG;
 	int quiet = 0;
 	int dedup = 0;
 	int verbose = 0;
+	int words = 0;
 
 	int check = 0;
 	int allow_empty = 0;
@@ -610,18 +637,33 @@ int main(int argc, char **argv) {
 		/* getopt_long writes longidx only when a long option matched, so it
 		 * is reset every round rather than once before the loop. */
 		int longidx = -1;
-		int opt = getopt_long(argc, argv, ":c:k:dqvVh", LONG_OPTS, &longidx);
+		int opt = getopt_long(argc, argv, ":f:dqvVsh", LONG_OPTS, &longidx);
 		if (opt == -1) break;
 		if (longidx >= 0) reject_abbreviation(argc, argv, &LONG_OPTS[longidx]);
 		switch (opt) {
-		case 'c': cfg_override = optarg; break;
-		case 'k':
-			if (!is_valid_kind(optarg)) {
+		/* One flag, two meanings, split on '/': an argument that contains
+		 * one is a path to a file, anything else is a config name looked up
+		 * under `pathset/`. Both are reset so a repeated -f is honestly
+		 * last-wins rather than leaving the earlier branch's value to win by
+		 * short-circuit inside resolve_config_path. The empty string is the
+		 * one rejected argument: it is neither, and would resolve to the
+		 * directory itself. */
+		case OPT_FILE:
+		case 'f':
+			if (!*optarg) {
 				usage(stderr);
-				die(2, "invalid kind '%s' (expected: path, man, info, fpath)", optarg);
+				die(2, "-f needs a config name or a path, not an empty string");
 			}
-			kind = optarg;
+			if (strchr(optarg, '/')) {
+				cfg_override = optarg;
+				cfg_name = DEFAULT_CONFIG;
+			} else {
+				cfg_name = optarg;
+				cfg_override = NULL;
+			}
 			break;
+		case OPT_SPACE:
+		case 's': words = 1; break;
 		case 'd': dedup = 1; break;
 		case 'q': quiet = 1; break;
 		case 'v': verbose = 1; break;
@@ -636,6 +678,8 @@ int main(int argc, char **argv) {
 		default: {
 			const char *tok = long_token(argc, argv);
 			usage(stderr);
+			if (opt == ':' && tok)
+				die(2, "%s requires an argument", tok);
 			if (tok && (optopt == 0 || optopt >= OPT_CHECK))
 				die(2, "unknown argument: %s", tok);
 			if (opt == ':')
@@ -651,12 +695,12 @@ int main(int argc, char **argv) {
 
 	if (quiet) verbose = 0;
 
-	char *cfg = resolve_config_path(cfg_override, kind);
+	char *cfg = resolve_config_path(cfg_override, cfg_name);
 	Vec v = {0};
 	int skipped = 0;
 	int warned = 0;
 	read_paths(cfg, &v);
-	expand_paths(&v, quiet, verbose, &skipped);
+	expand_paths(&v, quiet, verbose, &skipped, words);
 	filter_paths(&v, quiet, verbose, &warned);
 	if (dedup) dedup_paths(&v, verbose);
 
@@ -695,7 +739,7 @@ int main(int argc, char **argv) {
 		die(1, "refusing to print an empty result (use --allow-empty to override)");
 	}
 
-	if (!check) print_path(&v);
+	if (!check) print_path(&v, words);
 
 	for (size_t i = 0; i < v.n; i++) free(v.items[i].path);
 	free(v.items);

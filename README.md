@@ -38,17 +38,17 @@ takes the same `PREFIX`. `make universal` builds a macOS fat binary
 ## Usage
 
 ```
-pathset [-c CONFIG] [-k KIND] [-d] [-q] [-v] [--check] [--allow-empty]
+pathset [-f NAME|FILE] [-d] [-q] [-v] [-s] [--check] [--allow-empty]
 pathset [-V|--version] [-h|--help]
 ```
 
 | Flag | Meaning |
 | --- | --- |
-| `-c CONFIG` | Read this file instead of the default lookup. Missing file is fatal; `-k` is ignored. |
-| `-k KIND` | One of `path` (default), `man`, `info`, `fpath`. Selects which config file is read. |
+| `-f`, `--file NAME` | Which config to read. A bare name is looked up under `pathset/` — see [Config lookup](#config-lookup) — and any name works; `path` is the default. An argument containing `/` is a path to a file instead, read with no fallback if it is missing. |
 | `-d` | Drop duplicates; first occurrence wins. A trailing slash does not make an entry distinct, so `/opt/bin` and `/opt/bin/` collapse. |
 | `-q` | Suppress the per-entry warnings. A one-line summary is still printed — see [Catching a rotted config](#catching-a-rotted-config). |
 | `-v` | Print expansions, kept entries, and dropped duplicates on stderr. `-q` wins. |
+| `-s`, `--space` | Join with a space instead of `:`, so the output reads as a shell array. Whitespace then becomes the unrepresentable character and `:` stops being one — see [Exit codes](#exit-codes). |
 | `--check` | Validate only: print nothing on stdout, exit with the codes below. For rc-file guards and scripts that want the status, not the output. |
 | `--allow-empty` | Print an empty result instead of failing on one. |
 | `-V`, `--version` | Print version. |
@@ -59,11 +59,11 @@ Add to your shell rc:
 ```sh
 # zsh / bash
 export PATH="$(pathset -q -d)"
-export MANPATH="$(pathset -k man -q -d)"
-export INFOPATH="$(pathset -k info -q -d)"
+export MANPATH="$(pathset -f man -q -d)"
+export INFOPATH="$(pathset -f info -q -d)"
 
-# zsh — fpath is an array, so split the output back into elements
-fpath=( ${(s.:.)$(pathset -k fpath -q -d)} $fpath )
+# zsh — fpath is an array, so -s emits it as one
+fpath=( $(pathset -f fpath -q -d -s) $fpath )
 ```
 
 ```fish
@@ -123,24 +123,27 @@ never exported, so a versioned entry silently drops:
 
 ```console
 $ echo '?/usr/share/zsh/$ZSH_VERSION/functions' >> ~/.config/pathset/fpath
-$ pathset -k fpath -v
+$ pathset -f fpath -v
 pathset: skipping conditional '/usr/share/zsh/$ZSH_VERSION/functions': $ZSH_VERSION is not set
 ```
 
 Export it for the one call rather than into every child process:
 
 ```sh
-fpath=( ${(s.:.)$(ZSH_VERSION="$ZSH_VERSION" pathset -k fpath -q -d)} $fpath )
+fpath=( $(ZSH_VERSION="$ZSH_VERSION" pathset -f fpath -q -d -s) $fpath )
 ```
 
 ### Config lookup
 
-First match wins; `<kind>` is the `-k` value, default `path`.
+First match wins; `<name>` is the `-f` value, default `path`. Any name works —
+`man`, `info` and `fpath` are conventions, not a fixed list — so a config named
+`toolchain` is read with `pathset -f toolchain`. A name with no file behind it
+is a fatal error naming the path that was tried.
 
-1. `-c CONFIG`
-2. `$XDG_CONFIG_HOME/pathset/<kind>` — only if `XDG_CONFIG_HOME` is set
-3. `$HOME/.config/pathset/<kind>` — canonical
-4. `$HOME/.pathset/<kind>` — legacy
+1. `-f FILE` — an `-f` argument containing `/`
+2. `$XDG_CONFIG_HOME/pathset/<name>` — only if `XDG_CONFIG_HOME` is set
+3. `$HOME/.config/pathset/<name>` — canonical
+4. `$HOME/.pathset/<name>` — legacy
 
 Starter configs are in [`examples/`](examples/): copy `path.example` to
 `~/.config/pathset/path`, `man.example` to `man`, `fpath.example` to `fpath`.
@@ -152,7 +155,7 @@ Starter configs are in [`examples/`](examples/): copy `path.example` to
 | `0` | Nothing was skipped. Entries emitted with a warning do not change this. |
 | `1` | Fatal — missing config, I/O error, out of memory, or an empty result that no skip explains. |
 | `2` | Bad command-line argument. |
-| `3` | One or more entries were skipped — a failed expansion, or a `:` that cannot be represented. Output is still printed; the code lets a script catch a config that has rotted. |
+| `3` | One or more entries were skipped — a failed expansion, or a character the separator cannot represent (`:` by default, whitespace under `-s`). Output is still printed; the code lets a script catch a config that has rotted. |
 
 A failed directory check is a warning, not a skip. `?conditional` drops and
 `-d` duplicate drops do not produce exit `3` either.
@@ -171,7 +174,7 @@ not `pathset`'s — so exit `3` never reaches you. To keep one signal, `-q`
 still prints a summary:
 
 ```console
-$ pathset -c bad.conf -q >/dev/null
+$ pathset -f ./bad.conf -q >/dev/null
 pathset: 2 entries emitted with warnings, 1 entry skipped (omit -q to see which)
 ```
 
@@ -186,14 +189,14 @@ pathset --check || echo "PATH config needs attention"
 With the config file shown above and `HOME=/Users/Shared/pathset-demo`:
 
 ```console
-$ pathset -c demo.conf
+$ pathset -f ./demo.conf
 /Users/Shared/pathset-demo/bin:/Users/Shared/pathset-demo/.local/bin:/usr/bin:/bin
 ```
 
 `-v` shows the reasoning on stderr:
 
 ```console
-$ pathset -c demo.conf -v > /dev/null
+$ pathset -f ./demo.conf -v > /dev/null
 pathset: expanded '~/bin' -> '/Users/Shared/pathset-demo/bin'
 pathset: expanded '~/.local/bin' -> '/Users/Shared/pathset-demo/.local/bin'
 pathset: skipping conditional '$RBENV_ROOT/shims': $RBENV_ROOT is not set
@@ -207,7 +210,7 @@ An entry that isn't a usable directory warns, is emitted anyway, and leaves
 the exit code alone:
 
 ```console
-$ pathset -c demo.conf ; echo "exit=$?"
+$ pathset -f ./demo.conf ; echo "exit=$?"
 pathset: '/opt/nope/bin' does not exist (emitted anyway)
 /usr/bin:/opt/nope/bin
 exit=0
@@ -217,7 +220,7 @@ An entry that fails to *expand* is the other case: there is no path to emit,
 so it is skipped — and that is what sets exit `3`:
 
 ```console
-$ pathset -c bad.conf ; echo "exit=$?"
+$ pathset -f ./bad.conf ; echo "exit=$?"
 pathset: skipping '$RBENV_ROOT/shims': $RBENV_ROOT is not set
 /usr/bin
 exit=3

@@ -4,6 +4,47 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `-s`, `--space` joins the output with a space instead of `:`, so the result
+  reads back as a shell array without a splitting hack:
+  `fpath=( $(pathset -f fpath -q -d -s) )` replaces
+  `fpath=( ${(s.:.)$(pathset -k fpath -q -d)} )`.
+
+  It also moves which character is unrepresentable. The `:` rejection exists
+  because the output format has no escape for its separator, and emitting one
+  would invent an element nobody declared; under `-s` that reasoning applies to
+  whitespace instead, matching what a shell splits a space-joined list on. So
+  `-s` drops an entry containing a space, tab or newline, and stops dropping
+  one containing `:`. Either way it is an expansion-class drop and sets exit
+  `3`, so "exit 3 means an entry could not be turned into a path" still holds.
+
+### Changed
+
+- **BREAKING** — `-c CONFIG` and `-k KIND` are replaced by a single
+  `-f`, `--file NAME`. An argument containing `/` is a path to a file, read
+  with no fallback if it is missing; any other argument is a config name looked
+  up under `pathset/`. Neither old short option is accepted, and there is no
+  deprecation period.
+
+  The fixed set of kinds went with the flag. `-k` validated its argument against
+  `{path, man, info, fpath}` and exited `2` on anything else; `-f` validates
+  nothing but the empty string, so `pathset -f toolchain` reads
+  `~/.config/pathset/toolchain` and a name with no file behind it is the
+  ordinary "cannot open" fatal — exit `1` naming the path tried, not exit `2`.
+  Those four are now conventions the docs demonstrate, not a whitelist.
+
+  Two flags for one decision meant the interaction had to be documented rather
+  than derived — `-c` silently won and `-k` was ignored. One flag with a rule
+  you can state in a sentence removes the interaction instead of explaining it.
+  A relative file now needs its `./`: `pathset -f ./demo.conf`, not
+  `pathset -c demo.conf`.
+
+  The word "kind" is gone with the flag, from the source, `-h`, the man page
+  and the docs. What it named is now just the name of a config file.
+
 ## 0.5.0
 
 ### Added

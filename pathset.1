@@ -4,25 +4,25 @@
 pathset \- manage your shell PATH from a config file
 .SH SYNOPSIS
 .B pathset
-[\fI\,-c CONFIG\/\fR] [\fI\,-k KIND\/\fR] [\fI\,-d\/\fR] [\fI\,-q\/\fR] [\fI\,-v\/\fR] [\fI\,--check\/\fR] [\fI\,--allow-empty\/\fR]
+[\fI\,-f NAME|FILE\/\fR] [\fI\,-d\/\fR] [\fI\,-q\/\fR] [\fI\,-v\/\fR] [\fI\,-s\/\fR] [\fI\,--check\/\fR] [\fI\,--allow-empty\/\fR]
 .br
 .B pathset
 [\fI\,-V|--version\/\fR] [\fI\,-h|--help\/\fR]
 .SH DESCRIPTION
-Reads a list of directories from a config file and prints a ':'\-joined
-string to stdout. Compose into any variable with $(...):
+Reads a list of directories from a config file and prints them to stdout
+joined by ':', or by a space under \fB\-s\fR. Compose with $(...):
 .IP
 export PATH="$(pathset \fB\-q\fR \fB\-d\fR)"
-export MANPATH="$(pathset \fB\-k\fR man \fB\-q\fR \fB\-d\fR)"
-export INFOPATH="$(pathset \fB\-k\fR info \fB\-q\fR \fB\-d\fR)"
-fpath=( ${(s.:.)$(pathset \fB\-k\fR fpath \fB\-q\fR \fB\-d\fR)} )   # zsh array
+export MANPATH="$(pathset \fB\-f\fR man \fB\-q\fR \fB\-d\fR)"
+export INFOPATH="$(pathset \fB\-f\fR info \fB\-q\fR \fB\-d\fR)"
+fpath=( $(pathset \fB\-f\fR fpath \fB\-q\fR \fB\-d\fR \fB\-s\fR) )   # zsh array
 .SH OPTIONS
 .TP
-\fB\-c\fR CONFIG
-read config from CONFIG (overrides default lookup)
-.TP
-\fB\-k\fR KIND
-select kind: path (default), man, info, fpath
+\fB\-f\fR, \fB\-\-file\fR NAME
+read the config named NAME, looked up as shown below
+(default: path). An argument containing '/' is read
+as a path to a file instead, with no fallback if it
+is missing.
 .TP
 \fB\-d\fR
 drop duplicate entries (first occurrence wins; a
@@ -35,6 +35,12 @@ it would otherwise be the only signal, and silent.
 .TP
 \fB\-v\fR
 print kept entries and expansions on stderr (\fB\-q\fR wins)
+.TP
+\fB\-s\fR, \fB\-\-space\fR
+join with a space instead of ':', so the result reads
+as a shell array. An entry containing whitespace is
+then the unrepresentable one and is skipped, exactly
+as a ':' entry is under the default separator.
 .TP
 \fB\-\-check\fR
 validate only: print nothing on stdout, exit as below
@@ -78,12 +84,12 @@ ${VAR}/foo
 braced form, useful next to a name char
 .IP
 Not supported: mid\-string '~', ${VAR:\-default}, '\e$' escapes.
-.SS "Config lookup (first match wins; <kind> = path|man|info|fpath):"
+.SS "Config lookup (first match wins; <name> is the -f value, default 'path'):"
 .IP
-1. \fB\-c\fR CONFIG (no fallback if missing: fatal error)
-2. $XDG_CONFIG_HOME/pathset/<kind> (only if XDG_CONFIG_HOME is set)
-3. $HOME/.config/pathset/<kind>    (XDG default, canonical)
-4. $HOME/.pathset/<kind>           (legacy home location)
+1. \fB\-f\fR FILE, an argument containing '/' (no fallback: fatal error)
+2. $XDG_CONFIG_HOME/pathset/<name> (only if XDG_CONFIG_HOME is set)
+3. $HOME/.config/pathset/<name>    (XDG default, canonical)
+4. $HOME/.pathset/<name>           (legacy home location)
 .SS "Shell setup (add to your shell rc):"
 .TP
 zsh / bash:
@@ -106,5 +112,5 @@ bad command\-line argument
 .TP
 3
 one or more entries were skipped: an expansion failure, or a
-\&':' that cannot be represented. '?conditional' drops and
-dedup drops do NOT contribute
+character the separator cannot represent. '?conditional' drops
+and dedup drops do NOT contribute

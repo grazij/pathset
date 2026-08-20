@@ -1,4 +1,4 @@
-# Example pathset config for PATH (kind = path, the default).
+# Example pathset config for PATH (config name: path, the default).
 #
 # Copy to one of these locations (first match wins, see `pathset -h`):
 #   ~/.config/pathset/path        (XDG default — canonical)
@@ -28,7 +28,7 @@
 #   $VAR/foo     ->  env var expansion        (unset -> skip with warning)
 #   ${VAR}/foo   ->  braced form
 #
-# Run `pathset -c examples/path.example -v` to see what gets kept,
+# Run `pathset -f examples/path.example -v` to see what gets kept,
 # expanded, and skipped. Run with `-d` to dedup.
 
 # --- User-specific binaries -----------------------------------------------

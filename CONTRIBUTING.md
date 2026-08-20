@@ -8,7 +8,7 @@ dependencies beyond libc.
 ```sh
 make build             # compile (native arch)
 make lint              # syntax-only check
-make test              # smoke tests in tests/run.sh (87 assertions)
+make test              # smoke tests in tests/run.sh
 make clean             # remove build artifacts
 make release           # clean build + tests, run before tagging
 make universal         # macOS fat binary (arm64 + x86_64)

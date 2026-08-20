@@ -1,4 +1,4 @@
-# Example pathset config for zsh's fpath (kind = fpath).
+# Example pathset config for zsh's fpath (config name: fpath).
 #
 # Copy to:
 #   ~/.config/pathset/fpath       (canonical)
@@ -6,13 +6,13 @@
 # Then add to your zshrc — fpath is an array, so split the colon-joined
 # output back into list elements:
 #
-#   fpath=( ${(s.:.)$(pathset -k fpath -q -d)} $fpath )
+#   fpath=( $(pathset -f fpath -q -d -s) $fpath )
 #
 # $VAR reads the environment, not your shell's own parameters. ZSH_VERSION is
 # the one that bites here: zsh sets it but never exports it, so pathset cannot
 # see it. Export it for the call if you use the versioned entry below:
 #
-#   fpath=( ${(s.:.)$(ZSH_VERSION="$ZSH_VERSION" pathset -k fpath -q -d)} $fpath )
+#   fpath=( $(ZSH_VERSION="$ZSH_VERSION" pathset -f fpath -q -d -s) $fpath )
 #
 # Syntax is identical to the path config — see `pathset -h`.
 

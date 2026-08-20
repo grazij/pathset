@@ -1,11 +1,11 @@
-# Example pathset config for MANPATH (kind = man).
+# Example pathset config for MANPATH (config name: man).
 #
 # Copy to:
 #   ~/.config/pathset/man         (canonical)
 #
 # Then add to your shell rc:
-#   zsh/bash:  export MANPATH="$(pathset -k man -q -d)"
-#   fish:      set -gx MANPATH (pathset -k man -q -d | string split :)
+#   zsh/bash:  export MANPATH="$(pathset -f man -q -d)"
+#   fish:      set -gx MANPATH (pathset -f man -q -d | string split :)
 #
 # Syntax is identical to the path config — see `pathset -h`.
 
