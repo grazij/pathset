@@ -23,6 +23,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the full help, on stdout, and `pathset.1` is generated from that text and
   needs no regeneration.
 
+### Fixed
+
+- `--file NAME` no longer rejects the option that follows it. In the
+  separate-argument spelling, `pathset --file cfg --check` exited `2` with
+  `unknown argument: --check` — an option the user had spelled correctly.
+  Every long option was affected, including `--help`, and only in
+  combination with `--file NAME`; `--file=cfg` and `-f cfg` were fine, which
+  made it look like a shell quoting problem. Regression from 0.5.0, when
+  option parsing moved to `getopt_long`.
+
+  The same fault silently *accepted* abbreviations in that spelling:
+  `pathset --fi cfg` ran instead of exiting `2`, contradicting the rule that
+  pathset answers only to a long option's full name. `--fi=cfg` was rejected
+  correctly, so the two spellings disagreed.
+
 ## 0.7.0
 
 ### Changed

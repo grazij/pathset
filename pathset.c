@@ -613,6 +613,23 @@ static const char *long_token(int argc, char **argv) {
 }
 
 /*
+ * The `--name` token getopt_long just *matched*, which long_token cannot find
+ * on its own: optind has advanced past the token by one for `--check` and
+ * `--file=NAME`, but by two for the separate `--file NAME` form, where the
+ * argument sits at optind - 1 and the token at optind - 2. optarg is what
+ * tells those apart -- for the separate form every libc hands back the argv
+ * pointer itself, while `--file=NAME` points into the middle of the token.
+ * Inferring from optind alone lands on NAME, or on the option after it.
+ */
+static const char *matched_long_token(int argc, char **argv, const struct option *matched) {
+	int i = optind - 1;
+	if (matched->has_arg != no_argument && optarg && i >= 1 && argv[i] == optarg) i--;
+	if (i < 1 || i >= argc) return NULL;
+	const char *t = argv[i];
+	return (t[0] == '-' && t[1] == '-' && t[2] != '\0') ? t : NULL;
+}
+
+/*
  * getopt_long accepts any unambiguous abbreviation of a long option, so
  * `--che` would reach us as `--check`. pathset has never accepted one, and
  * silently widening the spellings it answers to would turn every future
@@ -622,7 +639,7 @@ static const char *long_token(int argc, char **argv) {
  * comparing the whole token would reject the documented form.
  */
 static void reject_abbreviation(int argc, char **argv, const struct option *matched) {
-	const char *tok = long_token(argc, argv);
+	const char *tok = matched_long_token(argc, argv, matched);
 	if (!tok) return;
 	const char *given = tok + 2;
 	size_t n = strcspn(given, "=");

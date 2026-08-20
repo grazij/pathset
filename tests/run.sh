@@ -1322,6 +1322,37 @@ else
 	bad "-f empty" "--file= rc=$rc99a / -f '' rc=$rc99b: $(cat "$WORK/err99b")"
 fi
 
+# --- Test 101: --file NAME does not swallow the option that follows it ---
+# The separate-argument form leaves optind two past the token, so a naive
+# scan finds the *next* option and rejects a correctly spelled one.
+t 101 '--file NAME does not swallow the option that follows it'
+fail101=""
+for follow in --check --allow-empty --space --version --help; do
+	"$BIN" --file "$cfg1" "$follow" >/dev/null 2>"$WORK/err101"
+	rc101=$?
+	[[ $rc101 -eq 0 ]] || fail101="$fail101 $follow(rc=$rc101: $(cat "$WORK/err101"))"
+done
+if [[ -z "$fail101" ]]; then
+	ok "--file NAME is fine before every long option"
+else
+	bad "--file NAME + long option" "$fail101"
+fi
+
+# --- Test 102: an abbreviation is rejected in the two-token form too ---
+t 102 'an abbreviation is rejected in the two-token form too'
+fail102=""
+for abbr in --f --fi --fil; do
+	"$BIN" "$abbr" "$cfg1" >/dev/null 2>"$WORK/err102"
+	rc102=$?
+	grep -q "unknown argument: $abbr\$" "$WORK/err102" || fail102="$fail102 $abbr(no-msg)"
+	[[ $rc102 -eq 2 ]] || fail102="$fail102 $abbr(rc=$rc102)"
+done
+if [[ -z "$fail102" ]]; then
+	ok "--f/--fi/--fil NAME are rejected and echoed as written"
+else
+	bad "abbreviation, two-token form" "$fail102"
+fi
+
 # --- Test 100: an argument error is a hint, not the whole help ---
 t 100 'an argument error is a hint, not the whole help'
 "$BIN" -z >"$WORK/out100" 2>"$WORK/err100"
