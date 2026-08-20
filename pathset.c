@@ -282,6 +282,19 @@ static void read_paths(const char *path, Vec *out) {
 	if (fclose(f) != 0) die(1, "close error on '%s': %s", path, strerror(errno));
 }
 
+/*
+ * stdout is the whole product: `export PATH="$(pathset -q)"` splices it
+ * straight into the shell. A short write on a full disk or a closed fd would
+ * otherwise truncate PATH mid-directory and still exit 0 -- silent, because
+ * $(...) reports the *shell's* status and the -q summary only counts config
+ * faults, never I/O. exit()'s implicit flush cannot report this; it discards
+ * the error. So every path that writes to stdout ends here first.
+ */
+static void flush_stdout_or_die(void) {
+	if (fflush(stdout) != 0 || ferror(stdout))
+		die(1, "write error on stdout: %s", strerror(errno));
+}
+
 static void print_path(const Vec *v, int words) {
 	for (size_t i = 0; i < v->n; i++) {
 		if (i) fputc(words ? ' ' : ':', stdout);
@@ -696,9 +709,15 @@ int main(int argc, char **argv) {
 		case OPT_CHECK: check = 1; break;
 		case OPT_ALLOW_EMPTY: allow_empty = 1; break;
 		case OPT_VERSION:
-		case 'V': printf("%s %s\n", PROG, PATHSET_VERSION); return 0;
+		case 'V':
+			printf("%s %s\n", PROG, PATHSET_VERSION);
+			flush_stdout_or_die();
+			return 0;
 		case OPT_HELP:
-		case 'h': usage(stdout); return 0;
+		case 'h':
+			usage(stdout);
+			flush_stdout_or_die();
+			return 0;
 		case ':':
 		case '?':
 		default: {
@@ -764,6 +783,7 @@ int main(int argc, char **argv) {
 	}
 
 	if (!check) print_path(&v, words);
+	flush_stdout_or_die();
 
 	for (size_t i = 0; i < v.n; i++) free(v.items[i].path);
 	free(v.items);

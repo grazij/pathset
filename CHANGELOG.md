@@ -25,6 +25,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A failed write to stdout is now a fatal error instead of being discarded.
+  `pathset` exited `0` after writing nothing, or after writing half a path,
+  if stdout was full or closed — and `export PATH="$(pathset -q)"` would set
+  `PATH` to that truncated string, because `$(...)` reports the *shell's*
+  status. Measured on a full filesystem: 8192 of 19692 bytes written, exit
+  `0`, nothing on stderr. It now exits `1` with
+  `write error on stdout: No space left on device`. `exit()`'s implicit flush
+  cannot report this, so the check is explicit. `--check` writes nothing to
+  stdout and is unaffected.
+
 - `--file NAME` no longer rejects the option that follows it. In the
   separate-argument spelling, `pathset --file cfg --check` exited `2` with
   `unknown argument: --check` — an option the user had spelled correctly.

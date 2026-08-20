@@ -1353,6 +1353,26 @@ else
 	bad "abbreviation, two-token form" "$fail102"
 fi
 
+# --- Test 103: a failed stdout write is reported, not swallowed ---
+# stdout is the whole product, and $(...) reports the shell's status, not
+# ours -- so a short write has to be caught here or it is never caught.
+# A closed fd 1 is the portable way to force one; ENOSPC takes the same path.
+t 103 'a failed stdout write is reported, not swallowed'
+"$BIN" -f "$cfg1" -q >&- 2>"$WORK/err103"
+rc103=$?
+"$BIN" -V >&- 2>"$WORK/err103v"
+rc103v=$?
+"$BIN" -f "$cfg1" --check >&- 2>"$WORK/err103c"
+rc103c=$?
+if [[ $rc103 -eq 1 && $rc103v -eq 1 && $rc103c -eq 0 ]] \
+	&& grep -q 'write error on stdout' "$WORK/err103" \
+	&& grep -q 'write error on stdout' "$WORK/err103v" \
+	&& [[ ! -s "$WORK/err103c" ]]; then
+	ok "a closed stdout is a fatal write error; --check writes nothing so it still succeeds"
+else
+	bad "stdout write error" "path rc=$rc103 -V rc=$rc103v --check rc=$rc103c: $(cat "$WORK/err103")"
+fi
+
 # --- Test 100: an argument error is a hint, not the whole help ---
 t 100 'an argument error is a hint, not the whole help'
 "$BIN" -z >"$WORK/out100" 2>"$WORK/err100"
