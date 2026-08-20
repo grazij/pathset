@@ -228,10 +228,24 @@ working — they prepend or append to the managed value.
 - Comments are full-line only, because a path may legitimately contain `#`.
 - A directory whose path contains `:` is skipped: the output format has no
   escape for the separator, so it cannot be represented.
-- The `?` check needs read permission, because it uses `opendir(3)` to tell
-  an empty directory from a populated one. `PATH` lookup needs only execute,
-  so a `0111` directory is usable but fails the check and a `?` entry naming
-  one is dropped. Write it without `?` to have it emitted.
+- A `?` entry naming an execute-but-not-read directory is dropped even though
+  it works. On a directory the two permission bits mean different things: `r`
+  lets you *list* what is inside, `x` lets you *traverse* to a name you
+  already know. `PATH` lookup only ever traverses — the shell does not list
+  your `PATH` directories, it builds `<dir>/<command>` and executes it — so
+  `--x--x--x` is a perfectly usable entry:
+
+  ```console
+  $ ls ~/hidden-bin
+  ls: /home/you/hidden-bin: Permission denied
+  $ PATH="$HOME/hidden-bin:$PATH" greet
+  hello from a directory you cannot read
+  ```
+
+  The `?` check cannot see that. It uses `opendir(3)`, which needs `r`,
+  because telling an empty directory from a populated one means reading it —
+  so it gets `EACCES` and cannot distinguish "no permission" from "not
+  there". Write the entry without `?` and it is emitted like any other.
 
 ## Related
 
