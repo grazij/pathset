@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/grazij/pathset/actions/workflows/ci.yml/badge.svg)](https://github.com/grazij/pathset/actions/workflows/ci.yml)
 
-Turns a readable list of directories into the `:`-joined string that `PATH`,
+Turns a readable list of directories into the formatted string that `PATH`,
 `MANPATH`, `INFOPATH`, and zsh's `fpath` want — so the order lives in one
 config file instead of scattered across rc files.
 
@@ -15,7 +15,7 @@ putting Apple's entries first and everything you installed after them.
 Non-shell contexts are worse. The Shortcuts app's "Run Shell Script" action
 loads only `~/.zshenv`, so it inherits whatever `path_helper` produced.
 
-`pathset` prints the order you declared. Set it once in `~/.zshenv` and shells
+`pathset` forces the order you declared. Set it once in `~/.zshenv` and shells
 and Shortcuts agree. A directory that doesn't exist, or is empty, is still
 emitted — with a warning — unless you mark it `?`.
 
