@@ -59,6 +59,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pathset answers only to a long option's full name. `--fi=cfg` was rejected
   correctly, so the two spellings disagreed.
 
+### Documentation
+
+- `-h` now says `-v` prints dropped duplicates, which it has always done;
+  `pathset.1` is regenerated to match. The README already documented it, so
+  the man page was the odd one out.
+- The README's "a path containing `:` is skipped" limitation was
+  unconditional and wrong under `-s`, where `:` is ordinary and whitespace is
+  the unrepresentable character instead.
+- `make run` passed `-c`, removed in 0.6.0, so it exited `2`; the recipe's
+  leading `-` hid that. It now passes `-f` and no longer swallows a failure.
+
 ## 0.7.0
 
 ### Changed

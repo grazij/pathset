@@ -93,7 +93,7 @@ man: build
 		./$(BINARY) -o $(BINARY).1
 
 run: build
-	-./$(BINARY) -c examples/path.example
+	./$(BINARY) -f ./examples/path.example
 
 lint:
 	$(CC) $(ALL_CFLAGS) -fsyntax-only pathset.c

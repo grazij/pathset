@@ -247,8 +247,10 @@ working — they prepend or append to the managed value.
 ## Limitations
 
 - Comments are full-line only, because a path may legitimately contain `#`.
-- A directory whose path contains `:` is skipped: the output format has no
-  escape for the separator, so it cannot be represented.
+- A directory whose path contains the separator is skipped: the output format
+  has no escape for it, so emitting one would invent an element nobody
+  declared. That means `:` by default, and whitespace under `-s` — where a
+  `:` is ordinary and is emitted.
 - A `?` entry naming an execute-but-not-read directory is dropped even though
   it works. On a directory the two permission bits mean different things: `r`
   lets you *list* what is inside, `x` lets you *traverse* to a name you
