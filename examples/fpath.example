@@ -8,6 +8,12 @@
 #
 #   fpath=( ${(s.:.)$(pathset -k fpath -q -d)} $fpath )
 #
+# $VAR reads the environment, not your shell's own parameters. ZSH_VERSION is
+# the one that bites here: zsh sets it but never exports it, so pathset cannot
+# see it. Export it for the call if you use the versioned entry below:
+#
+#   fpath=( ${(s.:.)$(ZSH_VERSION="$ZSH_VERSION" pathset -k fpath -q -d)} $fpath )
+#
 # Syntax is identical to the path config — see `pathset -h`.
 
 # --- User function dirs ---------------------------------------------------
@@ -20,3 +26,7 @@
 
 # --- System ---------------------------------------------------------------
 /usr/share/zsh/site-functions
+
+# The functions zsh itself ships, under a version-numbered directory. Drops
+# silently unless ZSH_VERSION reaches pathset's environment — see the header.
+?/usr/share/zsh/$ZSH_VERSION/functions

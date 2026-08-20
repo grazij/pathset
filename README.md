@@ -116,6 +116,23 @@ escapes, and special variables like `$$` are not supported and stay literal.
 An entry whose expansion fails is skipped with a warning rather than emitted
 half-resolved.
 
+`$VAR` reads the **environment**, not your shell's own parameters. `set` lists
+both; `env` lists only the exported ones, and those are the only ones pathset
+can see. zsh's `ZSH_VERSION` is the usual trap — it is a plain shell parameter,
+never exported, so a versioned entry silently drops:
+
+```console
+$ echo '?/usr/share/zsh/$ZSH_VERSION/functions' >> ~/.config/pathset/fpath
+$ pathset -k fpath -v
+pathset: skipping conditional '/usr/share/zsh/$ZSH_VERSION/functions': $ZSH_VERSION is not set
+```
+
+Export it for the one call rather than into every child process:
+
+```sh
+fpath=( ${(s.:.)$(ZSH_VERSION="$ZSH_VERSION" pathset -k fpath -q -d)} $fpath )
+```
+
 ### Config lookup
 
 First match wins; `<kind>` is the `-k` value, default `path`.
