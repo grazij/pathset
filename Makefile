@@ -1,5 +1,5 @@
 BINARY = pathset
-VERSION ?= 0.7.1
+VERSION ?= 0.7.2
 PREFIX ?= /usr/local
 CC ?= cc
 # CFLAGS belongs to whoever is doing the build: override it freely, including
