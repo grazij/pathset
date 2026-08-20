@@ -44,9 +44,7 @@ $(BINARY): pathset.c
 
 # Maintainer target: a from-scratch build plus the test suite, run before
 # tagging. Does not regenerate the man page — `make man` is a separate
-# deliberate step, so no build target depends on help2man. The Homebrew
-# formula runs plain `make build`; it neither tests nor generates docs on the
-# user's machine.
+# deliberate step, so no build target depends on help2man.
 release: clean build test
 	@echo
 	@./$(BINARY) -V

@@ -16,8 +16,6 @@ make release-universal # clean fat build + tests, run before tagging
 make install           # install to $(PREFIX)/bin (default /usr/local)
 make uninstall         # remove the installed binary and man page
 make man               # regenerate pathset.1 (needs help2man)
-make formula           # bump + publish the Homebrew formula
-make formula-verify    # install from the published tap as a sanity check
 ```
 
 `tests/run.sh` takes an optional filter when iterating on one case:
@@ -68,60 +66,32 @@ only thing that runs the suite against the exact binary being shipped.
 
 ## Releasing
 
-The order matters: `make formula` computes the formula's `sha256` by
-downloading the tagged tarball from GitHub, so **the tag must already be
-pushed before it runs.**
-
 ```sh
 # 1. Move the CHANGELOG [Unreleased] entries under a new version heading
 #    and bump VERSION in the Makefile.
 $EDITOR CHANGELOG.md Makefile
 
-# 2. If the -h / -V text changed, regenerate and commit the man page.
+# 2. Regenerate and commit the man page. help2man stamps VERSION into the
+#    .TH line, so a bump alone leaves pathset.1 stale even if -h is unchanged.
 make man
 
 # 3. Clean build + full test suite.
 make release              # or: make release-universal
 
-# 4. Commit the bump and push it.
-git commit -am "Bumped release to X.Y.Z"
+# 4. Commit the bump and push it. Wait for CI to go green.
+git commit -am "chore(release): X.Y.Z"
 git push origin main
 
-# 5. Tag and push the tag. Do not skip the tag push.
+# 5. Tag and push the tag.
 git tag vX.Y.Z
 git push origin vX.Y.Z
-
-# 6. Publish the formula, then sanity-check the published tap.
-make formula
-make formula-verify
 ```
 
-`make formula` runs end to end: downloads the tarball, computes its `sha256`,
-rewrites `url` + `sha256` in `Formula/pathset.rb`, commits and pushes that
-here, then copies the formula into the tap checkout and commits and pushes it
-there. Never hand-edit those two lines.
+There is no publishing step. The in-repo Homebrew formula and the `make
+formula` / `make formula-verify` targets were removed in 1170649, along with
+`Formula/pathset.rb`, so a tag is the whole release. If a tap is reintroduced
+later, it publishes from the tag rather than from this repo.
 
-It assumes the tap is cloned next to this repo. Override the location and
-GitHub coordinates if your layout differs:
-
-```sh
-make formula TAP_DIR=../my-tap GITHUB_USER=alice GITHUB_REPO=pathset
-```
-
-### Troubleshooting a release
-
-**`curl: (56) ... error: 404`** — the tag for the current `VERSION` isn't on
-GitHub; step 5 was skipped, or only the commit was pushed. Confirm with
-`git ls-remote --tags origin`, push the tag, and re-run.
-
-**Verify the tap push landed.** `make formula` pushes two repos, and a failure
-in the second leaves the tap commit unpushed locally — `brew install` then
-keeps serving the previous version even though everything here looks released:
-
-```sh
-git -C ../homebrew-tap status -sb   # expect no "ahead" marker
-```
-
-`make formula-verify` catches this too: it untaps, re-taps, installs from the
-published tap, prints `-V`, and uninstalls. Note the final `brew uninstall` —
-if you keep `pathset` installed via Homebrew, reinstall it afterward.
+`make release` is a local pre-check and is not a substitute for CI: it runs on
+one platform, and the portability breaks worth catching are the ones that only
+appear on another libc.

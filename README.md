@@ -24,13 +24,7 @@ variable you like.
 
 ## Install
 
-Homebrew:
-
-```sh
-brew install grazij/tap/pathset
-```
-
-From source (needs a C11 compiler; no dependencies beyond libc):
+Needs a C11 compiler; no dependencies beyond libc.
 
 ```sh
 make

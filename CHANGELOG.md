@@ -62,6 +62,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (a config file of that name, which fails to open) instead of printing
   help. No single-purpose invocation is affected.
 
+### Removed
+
+- The Homebrew formula, the tap-publishing targets (`make formula`,
+  `make formula-verify`) and `Formula/pathset.rb`. `brew install
+  grazij/tap/pathset` no longer has anything publishing to it, so the README
+  no longer offers it; build from source with `make && sudo make install`.
+  A release is now just a pushed tag.
+
 ### Fixed
 
 - A config whose entries were all skipped hit the empty-result guard and
