@@ -22,7 +22,6 @@
 
 # --- Homebrew zsh completions / functions ---------------------------------
 ?$HOMEBREW_PREFIX/share/zsh/site-functions
-?/opt/homebrew/share/zsh/site-functions
 
 # --- System ---------------------------------------------------------------
 /usr/share/zsh/site-functions

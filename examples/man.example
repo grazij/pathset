@@ -12,9 +12,8 @@
 # --- User-installed man pages ---------------------------------------------
 ?~/.local/share/man
 
-# --- Homebrew (macOS / Linux) ---------------------------------------------
+# --- Homebrew -------------------------------------------------------------
 ?$HOMEBREW_PREFIX/share/man
-?/opt/homebrew/share/man
 
 # --- System ---------------------------------------------------------------
 /usr/local/share/man

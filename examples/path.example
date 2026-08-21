@@ -32,11 +32,9 @@
 # expanded, and skipped.
 
 # --- User-specific binaries -----------------------------------------------
-~/bin
-~/.local/bin
-# Platform-specific overlay; '?' so it's a no-op if you don't use it.
-?~/.local/macos/bin
-?~/.local/linux/bin
+?~/bin
+?~/.bin
+?~/.local/bin
 
 # --- Homebrew -------------------------------------------------------------
 ?$HOMEBREW_PREFIX/bin
