@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/grazij/pathset/actions/workflows/ci.yml/badge.svg)](https://github.com/grazij/pathset/actions/workflows/ci.yml)
 
-Turns a readable list of directories into the formatted string that `PATH`,
-`MANPATH`, `INFOPATH`, and zsh's `fpath` want — so the order lives in one
+Turns a readable list of directories into the formatted string for `PATH`,
+`MANPATH`, `INFOPATH`, and zsh's `fpath` — so the order lives in one
 config file instead of scattered across rc files.
 
 ## Background
