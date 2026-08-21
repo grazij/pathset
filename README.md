@@ -18,8 +18,7 @@ loads only `~/.zshenv`, so it inherits whatever `path_helper` produced.
 `pathset` forces the order you declared. Set it once in `~/.zshenv` and shells
 and Shortcuts agree. A directory that doesn't exist, or is empty, is still
 emitted — with a warning — unless you mark it `?`. Duplicates are always
-dropped, first occurrence wins: a trailing slash does not make an entry
-distinct, so `/opt/bin` and `/opt/bin/` collapse.
+dropped, first occurrence wins.
 
 The output is data, not a shell command — compose it with `$(...)` into any
 variable you like.
